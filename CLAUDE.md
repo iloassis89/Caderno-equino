@@ -18,4 +18,4 @@ e o `LEIA-ME.md` desta pasta.
 - Modo de teste até o Ilo autorizar produção.
 - Nunca pedir chaves secretas no chat; usar conectores ou segredos do Supabase.
 - Ao fim de cada sessão, anotar o progresso no briefing.
-- Publicar a web: `cd app && npx expo export --platform web --output-dir dist && touch dist/.nojekyll`, depois enviar `dist` para a branch `gh-pages`.
+- Publicar a web: `cd app && npx expo export --platform web --output-dir dist`; depois embutir o JS do bundle no `index.html` (script inline, trocando `</script` por `<\/script`), copiar `index.html`, `manifest.json`, `sw.js`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png`, `favicon.ico` e `.nojekyll` para a branch `gh-pages`. A API de Pages não é acessível pelo proxy; o Pages já está ativado na `gh-pages`.
