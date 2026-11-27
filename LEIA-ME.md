@@ -97,3 +97,10 @@ Para receber os avisos no e-mail (grátis, 300 e-mails por dia no Brevo):
 2. Em SMTP & API → API Keys, gere uma chave.
 3. No Supabase (projeto IAS Horse) → Edge Functions → Secrets, adicione `BREVO_API_KEY` (a chave) e `EMAIL_REMETENTE` (o e-mail confirmado).
 Para trocar o e-mail que recebe os avisos: Administração → Configurações.
+
+## Pagamento por Pix ou cartão à vista (InfinitePay)
+1. No app da InfinitePay, ative o **Checkout integrado** (Configurações do Checkout → "Habilitar checkout integrado").
+2. No IAS Horse: Mais → Administração → Configurações → **Sua InfiniteTag** (sem o $) → Guardar.
+3. (Recomendado) No painel da InfinitePay, crie uma chave de API do checkout (começa com `inchk_`) e cole no Supabase → Edge Functions → Secrets como `INFINITEPAY_API_KEY`. Com ela o Pix fica ligado com certeza e os juros do parcelamento ficam por conta do cliente.
+4. Faça um pagamento de teste de verdade (não existe modo de teste na InfinitePay) e veja o plano liberar sozinho. Estorno é feito no app da InfinitePay.
+Preços por período ficam na tabela `planos_periodos`.

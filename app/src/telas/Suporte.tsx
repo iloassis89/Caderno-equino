@@ -449,6 +449,7 @@ export function AdminConfig() {
   const [semana, setSemana] = useState("");
   const [mes, setMes] = useState("");
   const [novoAdmin, setNovoAdmin] = useState("");
+  const [tag, setTag] = useState("");
   const [msg, setMsg] = useState<{ t: string; tipo: "ok" | "erro" } | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const cfg = useCarga(async () => {
@@ -462,6 +463,7 @@ export function AdminConfig() {
     const c = cfg.dados;
     if (!c) return;
     setEmail(c.email_avisos ?? "");
+    setTag(typeof c.infinitepay_handle === "string" ? c.infinitepay_handle : "");
     setVagas(String(c.anuncio_vagas ?? 3));
     setSemana(((c.anuncio_preco_semana_centavos ?? 4900) / 100).toFixed(2).replace(".", ","));
     setMes(((c.anuncio_preco_mes_centavos ?? 14900) / 100).toFixed(2).replace(".", ","));
@@ -515,6 +517,16 @@ export function AdminConfig() {
       <Campo rotulo="Preço por mês (R$)" value={mes} onChangeText={setMes} keyboardType="decimal-pad" />
       <Aviso texto={msg?.t} tipo={msg?.tipo} />
       <Botao titulo="Guardar configurações" icone="content-save-outline" onPress={salvar} carregando={ocupado} />
+
+      <Cabecalho texto="Pagamento Pix / à vista (InfinitePay)" />
+      <Campo rotulo="Sua InfiniteTag (sem o $)" value={tag} onChangeText={(t) => setTag(t.replace(/^\$/, "").trim().toLowerCase())} autoCapitalize="none"
+        dica="É o seu nome com $ no app da InfinitePay. O dinheiro dos planos cai direto nessa conta." />
+      <Botao titulo="Guardar InfiniteTag" tipo="secundario" icone="content-save-outline" onPress={async () => {
+        setMsg(null);
+        const { error } = await supabase.from("configuracoes").update({ valor: tag, atualizado_em: new Date().toISOString() }).eq("chave", "infinitepay_handle");
+        if (error) return setMsg({ t: mensagemErro(error), tipo: "erro" });
+        setMsg({ t: tag ? `InfiniteTag guardada: $${tag}. Faça um pagamento de teste.` : "InfiniteTag apagada: o Pix fica desligado.", tipo: "ok" });
+      }} />
 
       <Cabecalho texto="Quem pode entrar na Administração" />
       <ErroCarga erro={admins.erro} tentar={admins.recarregar} />

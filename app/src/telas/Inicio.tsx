@@ -13,7 +13,7 @@ export default function Inicio() {
   const nav = useNav();
   const { dados, carregando, erro, recarregar } = useCarga(async () => {
     const hoje = hojeISO();
-    const [plano, pendencias, tarefas, perfil, suporte] = await Promise.all([
+    const [plano, pendencias, tarefas, perfil, suporte, assin] = await Promise.all([
       carregarPlano(),
       supabase.from("records").select("*, animals(nome)")
         .in("status", ["a_confirmar", "avaliacao_veterinaria"]).order("data", { ascending: false }).limit(20),
@@ -21,8 +21,11 @@ export default function Inicio() {
         .gt("proxima_data", hoje).lte("proxima_data", somarDias(hoje, 7)).order("proxima_data").limit(10),
       supabase.from("profiles").select("nome").maybeSingle(),
       supabase.auth.getUser().then(({ data: u }) => supabase.from("suporte_conversas").select("id").eq("user_id", u.user?.id ?? "").eq("nao_lida_usuario", true).order("updated_at", { ascending: false }).limit(5)),
+      supabase.from("subscriptions").select("periodo_fim").eq("status", "ativa").like("id_externo", "infinitepay:%").order("periodo_fim", { ascending: false }).limit(1),
     ]);
-    return { suporte: (suporte.data ?? []) as { id: string }[], plano, pendencias: ok(pendencias) ?? [], tarefas: ok(tarefas) ?? [], nome: (perfil.data?.nome as string | null) ?? null, hoje };
+    const fim = (assin.data?.[0]?.periodo_fim as string | undefined) ?? null;
+    const diasPlano = fim ? Math.ceil((new Date(fim).getTime() - Date.now()) / 86400000) : null;
+    return { diasPlano, suporte: (suporte.data ?? []) as { id: string }[], plano, pendencias: ok(pendencias) ?? [], tarefas: ok(tarefas) ?? [], nome: (perfil.data?.nome as string | null) ?? null, hoje };
   });
 
   if (erro && !dados) return <Tela titulo="Início"><ErroCarga erro={erro} tentar={recarregar} /></Tela>;
@@ -35,6 +38,16 @@ export default function Inicio() {
 
   return (
     <Tela titulo={primeiroNome ? `Olá, ${primeiroNome}` : "Olá"}>
+      {d.diasPlano != null && d.diasPlano <= 7 && (
+        <Cartao style={{ backgroundColor: d.diasPlano <= 0 ? cor.barroClaro : cor.ouroClaro }} onPress={() => nav.ir("Planos")}>
+          <View style={[est.linha, { gap: 12 }]}>
+            <Icone nome="calendar-alert" tamanho={30} cor={d.diasPlano <= 0 ? cor.barro : cor.ouro} />
+            <Text style={[est.texto, { flex: 1, fontWeight: "700" }]}>
+              {d.diasPlano <= 0 ? "Seu plano venceu. Renove em até 5 dias para não perder as funções." : `Seu plano vence em ${d.diasPlano} dia(s). Toque para renovar pelo Pix.`}
+            </Text>
+          </View>
+        </Cartao>
+      )}
       {d.suporte.length > 0 && (
         <Cartao style={{ backgroundColor: cor.couroClaro }} onPress={() => d.suporte.length === 1 ? nav.ir("SuporteConversa", { id: d.suporte[0].id }) : nav.ir("Suporte")}>
           <View style={[est.linha, { gap: 12 }]}>

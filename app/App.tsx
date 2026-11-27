@@ -57,7 +57,7 @@ function renderizar(r: Rota) {
     case "Ajuda": return <Ajuda />;
     case "MinhaIA": return <MinhaIA />;
     case "Resumo": return <Resumo />;
-    case "Planos": return <Planos retorno={p.retorno} />;
+    case "Planos": return <Planos retorno={p.retorno} pagamento={p.pagamento} />;
     case "Mais": return <Mais />;
     case "Tutorial": return <TutorialRota />;
     case "Afiliado": return <Afiliado />;
@@ -129,7 +129,7 @@ export default function App() {
     // volta do segundo plano: reagenda (mantém a janela de 14 dias dos remédios)
     const sub = AppState.addEventListener("change", (s) => { if (s === "active") sincronizarLembretes().catch(() => {}); });
     const parar = ouvirToques((id, horario, dia, antes) => {
-      setPilha([{ nome: "Inicio" }, { nome: "LembreteFeito", params: { id, horario, dia, antes } }]);
+      setPilha(id === "__plano__" ? [{ nome: "Inicio" }, { nome: "Planos" }] : [{ nome: "Inicio" }, { nome: "LembreteFeito", params: { id, horario, dia, antes } }]);
       setVersao((v) => v + 1);
     });
     return () => { sub.remove(); parar(); };
@@ -138,6 +138,18 @@ export default function App() {
   // Volta do Stripe: abre a tela de planos com a mensagem certa
   useEffect(() => {
     const tratar = (url: string | null) => {
+      // volta do pagamento Pix/à vista (InfinitePay): ?pagamento=<id>&slug=…&transaction_nsu=…
+      try {
+        const q = url ? Linking.parse(url).queryParams : null;
+        if (q && typeof q.pagamento === "string") {
+          setPilha([{ nome: "Inicio" }, { nome: "Planos", params: { pagamento: { id: q.pagamento, slug: q.slug, transaction_nsu: q.transaction_nsu } } }]);
+          if (Platform.OS === "web") {
+            // @ts-ignore
+            window.history.replaceState({}, "", window.location.pathname);
+          }
+          return;
+        }
+      } catch { /* segue */ }
       const st = statusDoRetorno(url);
       if (st) {
         setPilha([{ nome: "Inicio" }, { nome: "Planos", params: { retorno: st } }]);

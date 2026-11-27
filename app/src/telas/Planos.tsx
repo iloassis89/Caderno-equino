@@ -4,7 +4,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { chamarFuncao, supabase, mensagemErro } from "../supabase";
 import { carregarPlano, useCarga } from "../dados";
-import { Aviso, Botao, Cabecalho, Campo, Carregando, Cartao, Tela, usePlano } from "../ui";
+import { Aviso, Botao, Cabecalho, Campo, Carregando, Cartao, Escolha, Tela, usePlano } from "../ui";
 import { reais } from "../constantes";
 import { br } from "../datas";
 import { cor, est } from "../tema";
@@ -26,7 +26,11 @@ async function abrir(url: string, destino: string) {
   await WebBrowser.openAuthSessionAsync(url, destino);
 }
 
-export default function Planos({ retorno }: { retorno?: string }) {
+const PERIODOS = [{ valor: "1", rotulo: "1 mês" }, { valor: "3", rotulo: "3 meses" }, { valor: "6", rotulo: "6 meses" }, { valor: "12", rotulo: "1 ano" }];
+
+export default function Planos({ retorno, pagamento }: { retorno?: string; pagamento?: { id: string; slug?: string; transaction_nsu?: string } }) {
+  const [periodo, setPeriodo] = useState<string | null>("12");
+  const [aguardando, setAguardando] = useState<string | null>(null);
   const [cupom, setCupom] = useState("");
   const [msg, setMsg] = useState<{ t: string; tipo: "erro" | "ok" | "info" } | null>(
     retorno === "sucesso" ? { t: "Pagamento recebido. Seu plano é atualizado em alguns segundos.", tipo: "ok" }
@@ -37,16 +41,19 @@ export default function Planos({ retorno }: { retorno?: string }) {
 
   const { dados, carregando, recarregar } = useCarga(async () => {
     const { data: u } = await supabase.auth.getUser();
-    const [planos, atual, assinatura, vinculo] = await Promise.all([
+    const [planos, atual, assinatura, vinculo, periodos] = await Promise.all([
       supabase.from("plans").select("*").order("ordem"),
       carregarPlano(),
       supabase.from("subscriptions").select("*").in("status", ["ativa", "em_atraso"]).order("created_at", { ascending: false }),
       supabase.from("referrals").select("desconto_pct, coupon_code").eq("customer_id", u.user?.id ?? "").maybeSingle(),
+      supabase.from("planos_periodos").select("*"),
     ]);
     const agora = new Date().toISOString();
     const validas = (assinatura.data ?? []).filter((x: any) => !x.periodo_fim || x.periodo_fim > agora);
     const escolhida = validas.find((x: any) => x.fonte === "stripe") ?? validas[0] ?? null;
-    return { planos: planos.data ?? [], atual, assinatura: escolhida, vinculo: vinculo.data };
+    const precos: Record<string, number> = {};
+    for (const x of (periodos.data ?? []) as any[]) precos[`${x.plan_code}|${x.meses}`] = x.preco_centavos;
+    return { planos: planos.data ?? [], atual, assinatura: escolhida, vinculo: vinculo.data, precos };
   });
 
   async function aplicarCupom() {
@@ -58,13 +65,13 @@ export default function Planos({ retorno }: { retorno?: string }) {
     const { error } = await supabase.rpc("aplicar_cupom", { p_code: cupom.trim() });
     setOcupado(null);
     if (error) return setMsg({ t: mensagemErro(error), tipo: "erro" });
-    setMsg({ t: `Cupom aplicado: ${v[0].desconto_pct}% de desconto em todas as mensalidades.`, tipo: "ok" });
+    setMsg({ t: `Cupom aplicado: ${v[0].desconto_pct}% de desconto em todos os pagamentos.`, tipo: "ok" });
     recarregar();
   }
 
   async function assinar(code: string) {
     setMsg(null);
-    setOcupado(code);
+    setOcupado(`stripe-${code}`);
     const destino = destinoRetorno();
     const { data, erro } = await chamarFuncao<{ url: string }>("stripe-checkout", { plan_code: code, destino });
     if (erro || !data?.url) { setOcupado(null); return setMsg({ t: erro ?? "Falha ao abrir o pagamento.", tipo: "erro" }); }
@@ -74,6 +81,51 @@ export default function Planos({ retorno }: { retorno?: string }) {
     for (let i = 0; i < 4; i++) { await new Promise((r) => setTimeout(r, 2500)); await recarregar(); }
     planoCtx.recarregar();
   }
+
+  // Pix ou cartão à vista (InfinitePay): o dinheiro cai direto na conta; o plano libera sozinho quando o pagamento é confirmado
+  async function pagar(code: string) {
+    if (ocupado) return;
+    setMsg(null);
+    setOcupado(code);
+    const { data, erro } = await chamarFuncao<{ url: string; pagamento_id: string }>("infinitepay", { acao: "criar", plan_code: code, meses: Number(periodo ?? 1) });
+    if (erro || !data?.url) { setOcupado(null); return setMsg({ t: erro ?? "Falha ao abrir o pagamento.", tipo: "erro" }); }
+    setAguardando(data.pagamento_id);
+    if (Platform.OS === "web") {
+      // @ts-ignore
+      window.location.href = data.url;
+      return;
+    }
+    await WebBrowser.openBrowserAsync(data.url);
+    setOcupado(null);
+    esperarConfirmacao(data.pagamento_id);
+  }
+
+  async function esperarConfirmacao(id: string, slug?: string, tx?: string) {
+    setMsg({ t: "Conferindo o pagamento…", tipo: "info" });
+    for (let i = 0; i < 8; i++) {
+      if (slug && tx) {
+        const { data } = await chamarFuncao<{ pago: boolean }>("infinitepay", { acao: "confirmar", pagamento_id: id, slug, transaction_nsu: tx });
+        if (data?.pago) break;
+      } else {
+        const { data } = await supabase.from("pagamentos").select("status").eq("id", id).maybeSingle();
+        if (data?.status === "pago") break;
+      }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    const { data: pg } = await supabase.from("pagamentos").select("status").eq("id", id).maybeSingle();
+    setAguardando(null);
+    await recarregar();
+    planoCtx.recarregar();
+    setMsg(pg?.status === "pago"
+      ? { t: "Pagamento confirmado! Seu plano já está liberado. Obrigado!", tipo: "ok" }
+      : { t: "Ainda não vimos o pagamento. Se você pagou, ele aparece em alguns minutos. Se não pagou, nada foi cobrado.", tipo: "info" });
+  }
+
+  // Voltando do pagamento na web: a InfinitePay manda slug e transaction_nsu no endereço
+  useEffect(() => {
+    if (pagamento?.id) esperarConfirmacao(pagamento.id, pagamento.slug, pagamento.transaction_nsu);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagamento?.id]);
 
   async function portal() {
     setOcupado("portal");
@@ -103,7 +155,9 @@ export default function Planos({ retorno }: { retorno?: string }) {
   }, [retorno]);
 
   if (carregando && !dados) return <Tela titulo="Planos" voltar><Carregando /></Tela>;
-  const { planos, atual, assinatura, vinculo } = dados!;
+  const { planos, atual, assinatura, vinculo, precos } = dados!;
+  const meses = Number(periodo ?? 1);
+  const avulso = assinatura?.fonte === "manual" && String(assinatura?.id_externo ?? "").startsWith("infinitepay:");
   const desconto = vinculo?.desconto_pct ?? 0;
 
   return (
@@ -112,7 +166,9 @@ export default function Planos({ retorno }: { retorno?: string }) {
       {assinatura && (
         <Cartao style={{ backgroundColor: cor.mataClara }}>
           <Text style={est.texto}>
-            {assinatura.fonte === "manual"
+            {avulso
+              ? `Plano pago até ${br(assinatura.periodo_fim)}. Pague de novo antes de vencer e os meses se somam.`
+              : assinatura.fonte === "manual"
               ? `Acesso liberado de presente${assinatura.periodo_fim ? ` até ${br(assinatura.periodo_fim)}` : ""}`
               : `Assinatura ${assinatura.status === "em_atraso" ? "com pagamento pendente" : "ativa"}${assinatura.periodo_fim ? ` · renova em ${br(assinatura.periodo_fim)}` : ""}`}
           </Text>
@@ -135,7 +191,7 @@ export default function Planos({ retorno }: { retorno?: string }) {
 
       <Cabecalho texto="Cupom de indicação" />
       {vinculo ? (
-        <Text style={est.texto}>Cupom <Text style={{ fontWeight: "700" }}>{vinculo.coupon_code}</Text> ativo: {desconto}% de desconto em todas as mensalidades.</Text>
+        <Text style={est.texto}>Cupom <Text style={{ fontWeight: "700" }}>{vinculo.coupon_code}</Text> ativo: {desconto}% de desconto em todos os pagamentos.</Text>
       ) : (
         <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-end" }}>
           <View style={{ flex: 1 }}><Campo rotulo="Tem um cupom?" value={cupom} onChangeText={setCupom} autoCapitalize="characters" /></View>
@@ -143,37 +199,51 @@ export default function Planos({ retorno }: { retorno?: string }) {
         </View>
       )}
 
-      <Cabecalho texto="Escolha pelo número de animais" />
+      <Cabecalho texto="Por quanto tempo?" />
+      <Escolha valor={periodo} aoEscolher={(v) => v && setPeriodo(v)} opcoes={PERIODOS} />
+      <Text style={[est.textoSuave, { marginTop: -6, marginBottom: 6 }]}>Pix ou cartão à vista. Quer parcelar? Pode, com os juros da maquininha por conta de quem parcela.</Text>
+      <Cabecalho texto="Quantos animais?" />
       {planos.map((p: any) => {
         const ehAtual = atual?.code === p.code;
-        const preco = p.preco_mensal_centavos;
-        const comDesconto = desconto ? Math.round(preco * (1 - desconto / 100)) : preco;
+        const mensal = p.preco_mensal_centavos;
+        const cheio = precos[`${p.code}|${meses}`] ?? mensal * meses;
+        const total = desconto ? Math.round(cheio * (1 - desconto / 100)) : cheio;
+        const economia = mensal * meses - cheio;
         return (
           <Cartao key={p.code} style={ehAtual ? { borderColor: cor.mata, borderWidth: 2 } : undefined}>
             <View style={est.entre}>
-              <Text style={[est.texto, { fontWeight: "700", fontSize: 17, flex: 1 }]}>{p.nome}</Text>
+              <Text style={[est.texto, { fontWeight: "700", flex: 1 }]}>{p.nome}</Text>
               <View style={{ alignItems: "flex-end" }}>
-                {preco === 0 ? <Text style={[est.texto, { fontWeight: "700" }]}>Grátis</Text> : (
+                {mensal === 0 ? <Text style={[est.texto, { fontWeight: "700" }]}>Grátis</Text> : (
                   <>
-                    {desconto > 0 && <Text style={[est.textoSuave, { textDecorationLine: "line-through" }]}>{reais(preco)}</Text>}
-                    <Text style={[est.texto, { fontWeight: "700", color: cor.mata }]}>{reais(comDesconto)}/mês</Text>
+                    {desconto > 0 && <Text style={[est.textoSuave, { textDecorationLine: "line-through" }]}>{reais(cheio)}</Text>}
+                    <Text style={[est.texto, { fontWeight: "700", color: cor.mata }]}>{reais(total)}</Text>
+                    {meses > 1 && <Text style={est.textoSuave}>{reais(Math.round(total / meses))}/mês</Text>}
                   </>
                 )}
               </View>
             </View>
             <Text style={est.textoSuave}>
-              Até {p.max_animais} animal(is){p.max_animais > 1 && preco > 0 ? ` · ${reais(Math.round(comDesconto / p.max_animais))} por animal` : ""}
-              {p.preco_mensal_centavos > 0 ? " · todas as funções" : " · funções básicas"}
-              {p.permite_multiplos_responsaveis ? " · vários responsáveis" : ""}
+              Até {p.max_animais} {p.max_animais > 1 ? "animais" : "animal"}{mensal > 0 ? " · todas as funções" : " · funções básicas"}
+              {mensal > 0 && economia > 0 ? ` · economia de ${reais(economia)}` : ""}
             </Text>
-            {ehAtual ? <Text style={[est.texto, { color: cor.mata, fontWeight: "700", marginTop: 6 }]}>Seu plano atual</Text> :
-              preco > 0 && assinatura?.fonte !== "manual" ? <Botao titulo={assinatura ? "Mudar para este" : "Assinar"} onPress={() => (assinatura?.fonte === "stripe" ? portal() : assinar(p.code))}
-                carregando={ocupado === p.code} /> : null}
+            {ehAtual && !avulso ? <Text style={[est.texto, { color: cor.mata, fontWeight: "700", marginTop: 6 }]}>Seu plano atual</Text> :
+              mensal > 0 && assinatura?.fonte !== "stripe" && !(assinatura?.fonte === "manual" && !avulso) ? (
+                <>
+                  <Botao titulo={ehAtual ? `Renovar (${PERIODOS.find((x) => x.valor === periodo)?.rotulo})` : "Pagar com Pix ou cartão"} icone="qrcode"
+                    onPress={() => pagar(p.code)} carregando={ocupado === p.code || (aguardando != null && ocupado === p.code)} />
+                  {meses === 1 && !avulso && (
+                    <Botao titulo="Ou: cartão com renovação automática" tipo="leve" onPress={() => assinar(p.code)} carregando={ocupado === `stripe-${p.code}`} />
+                  )}
+                </>
+              ) : assinatura?.fonte === "stripe" && !ehAtual && mensal > 0 ? (
+                <Botao titulo="Mudar para este" tipo="leve" onPress={portal} />
+              ) : null}
           </Cartao>
         );
       })}
       <Text style={[est.textoSuave, { marginTop: 8 }]}>
-        Pagamento seguro pelo Stripe. Cancele quando quiser; o acesso continua até o fim do mês pago.
+        Pix e cartão à vista pela InfinitePay. A renovação automática no cartão é pelo Stripe e pode ser cancelada quando quiser. Ao vencer, você tem 5 dias para renovar sem perder nada; depois o app volta ao plano grátis, e suas anotações continuam guardadas.
       </Text>
     </Tela>
   );

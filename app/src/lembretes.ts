@@ -92,10 +92,11 @@ async function sincronizarAgora(): Promise<ResultadoSync> {
   if (!perm.granted) return { agendados: 0, total: 0, permitido: false };
 
   const hoje = hojeISO();
-  const [{ data: lembretes }, { data: previsao }, { data: tarefas }] = await Promise.all([
+  const [{ data: lembretes }, { data: previsao }, { data: tarefas }, { data: assinaturas }] = await Promise.all([
     supabase.from("lembretes").select("*, animals(nome)").eq("ativo", true),
     supabase.rpc("previsao_estoque"),
     supabase.from("tasks").select("id,titulo,proxima_data,ativo").eq("ativo", true),
+    supabase.from("subscriptions").select("periodo_fim,id_externo").eq("status", "ativa").like("id_externo", "infinitepay:%"),
   ]);
   const avisos: Aviso[] = [];
   const agora = new Date();
@@ -148,6 +149,19 @@ async function sincronizarAgora(): Promise<ResultadoSync> {
     }
   }
 
+  // plano pago com Pix/à vista: avisa 7 dias e 1 dia antes de vencer
+  const fimPlano = ((assinaturas ?? []) as any[]).map((a) => a.periodo_fim as string).filter(Boolean).sort().pop();
+  if (fimPlano) {
+    for (const antes of [7, 1]) {
+      const quando = new Date(new Date(fimPlano).getTime() - antes * 86400000);
+      quando.setHours(9, 0, 0, 0);
+      if (quando > agora) {
+        avisos.push({ id: `plano|${antes}`, quando, prioridade: 1, gatilho: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: quando, ...canal },
+          titulo: "Seu plano do IAS Horse vence " + (antes === 1 ? "amanhã" : `em ${antes} dias`), corpo: "Renove pelo Pix em Mais → Meu plano. Os meses se somam.", dados: { plano: true } });
+      }
+    }
+  }
+
   // remédio primeiro; depois o que toca nas próximas 48 horas; depois o resto pela data
   const em48h = agora.getTime() + 48 * 3600_000;
   const peso = (a: Aviso) => a.prioridade * 10 + (a.quando && a.quando.getTime() > em48h ? 5 : 0);
@@ -169,6 +183,7 @@ export function ouvirToques(abrir: (lembreteId: string, horario: string, dia: st
   if (!temDespertador) return () => {};
   const tratar = (r: Notifications.NotificationResponse | null) => {
     const d: any = r?.notification.request.content.data;
+    if (d?.plano) return abrir("__plano__", "", "", false);
     if (!d?.lembrete_id) return;
     // aviso diário sem data: se a hora dele ainda não chegou hoje, é o de ontem
     let dia = typeof d.dia === "string" ? d.dia : hojeISO();
