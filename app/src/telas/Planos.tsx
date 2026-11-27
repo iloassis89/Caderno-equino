@@ -180,11 +180,11 @@ export default function Planos({ retorno, pagamento }: { retorno?: string; pagam
 
       <Cartao>
         <Text style={[est.texto, { fontWeight: "700" }]}>Grátis (1 animal)</Text>
-        {["Anotar tocando", "Lembretes no celular (comida, água, remédio da receita, tarefas)", "Alimentação com avaliação por IA", "Assistente com IA (5 por dia, ou bem mais com a sua própria IA)", "Foto e documento do animal", "Últimos 30 dias de histórico"].map((t) => (
+        {["Anotar tocando", "Lembretes no celular (comida, água, remédio da receita, tarefas)", "Alimentação (a avaliação por IA conta como pergunta)", "1 pergunta por dia à IA (ou mais com a sua própria IA)", "Foto e documento do animal", "Últimos 30 dias de histórico"].map((t) => (
           <Text key={t} style={est.texto}>✓ {t}</Text>
         ))}
         <Text style={[est.texto, { fontWeight: "700", marginTop: 12 }]}>Pago: a partir de R$ 9,90 por mês</Text>
-        {["Tudo do grátis, para mais animais", "PDF e WhatsApp para o veterinário", "Estoque, gastos e aviso de comprar de novo", "Fotos nas anotações", "Histórico completo e evolução do peso", "Resumo da semana", "Assistente: 30 por dia"].map((t) => (
+        {["Tudo do grátis, para mais animais", "PDF e WhatsApp para o veterinário", "Estoque, gastos e aviso de comprar de novo", "Fotos nas anotações", "Histórico completo e evolução do peso", "Resumo da semana", "5 perguntas por dia à IA"].map((t) => (
           <Text key={t} style={est.texto}>✓ {t}</Text>
         ))}
       </Cartao>
@@ -208,7 +208,11 @@ export default function Planos({ retorno, pagamento }: { retorno?: string; pagam
         const mensal = p.preco_mensal_centavos;
         const cheio = precos[`${p.code}|${meses}`] ?? mensal * meses;
         const total = desconto ? Math.round(cheio * (1 - desconto / 100)) : cheio;
-        const economia = mensal * meses - cheio;
+        // comparação com o preço de 1 animal (R$ 9,90/mês): quanto mais animais e mais meses, menos por animal
+        const base1 = planos.find((x: any) => x.max_animais === 1 && x.preco_mensal_centavos > 0)?.preco_mensal_centavos ?? 990;
+        const porAnimalMes = mensal > 0 ? Math.round(total / meses / p.max_animais) : 0;
+        const economia = base1 * p.max_animais * meses - cheio;
+        const pctMenos = mensal > 0 ? Math.round((1 - cheio / (base1 * p.max_animais * meses)) * 100) : 0;
         return (
           <Cartao key={p.code} style={ehAtual ? { borderColor: cor.mata, borderWidth: 2 } : undefined}>
             <View style={est.entre}>
@@ -225,8 +229,12 @@ export default function Planos({ retorno, pagamento }: { retorno?: string; pagam
             </View>
             <Text style={est.textoSuave}>
               Até {p.max_animais} {p.max_animais > 1 ? "animais" : "animal"}{mensal > 0 ? " · todas as funções" : " · funções básicas"}
-              {mensal > 0 && economia > 0 ? ` · economia de ${reais(economia)}` : ""}
             </Text>
+            {mensal > 0 && (
+              <Text style={[est.textoSuave, { color: cor.mata, fontWeight: "700" }]}>
+                {reais(porAnimalMes)} por animal/mês{pctMenos > 0 ? ` · ${pctMenos}% menos que avulso (economia de ${reais(economia)})` : ""}
+              </Text>
+            )}
             {ehAtual && !avulso ? <Text style={[est.texto, { color: cor.mata, fontWeight: "700", marginTop: 6 }]}>Seu plano atual</Text> :
               mensal > 0 && assinatura?.fonte !== "stripe" && !(assinatura?.fonte === "manual" && !avulso) ? (
                 <>

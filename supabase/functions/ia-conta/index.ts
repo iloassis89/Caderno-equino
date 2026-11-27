@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
 
     if (corpo.acao === "status") {
       const { data } = await admin.from("ia_contas").select("provedor,dica,criado_em").eq("user_id", user.id).maybeSingle();
-      return json({ conta: data ?? null, ia_do_app: !!Deno.env.get("ANTHROPIC_API_KEY") });
+      return json({ conta: data ?? null, ia_do_app: !!(Deno.env.get("GEMINI_API_KEY") || Deno.env.get("ANTHROPIC_API_KEY")) });
     }
 
     if (corpo.acao === "desvincular") {

@@ -291,7 +291,8 @@ export function AdminDiagnostico() {
       <Aviso texto={erro} tipo="erro" />
       {r && (
         <Cartao>
-          {linha("IA do app (ANTHROPIC_API_KEY)", r.ia_do_app)}
+          {linha("IA grátis do app (GEMINI_API_KEY)", r.ia_gemini)}
+          {linha("IA paga de reserva (ANTHROPIC_API_KEY, opcional)", r.ia_anthropic)}
           {linha("E-mail: chave do Brevo (BREVO_API_KEY)", r.email_brevo || r.email_resend)}
           {linha("E-mail remetente (EMAIL_REMETENTE)", r.email_remetente)}
           {linha("Pagamentos (STRIPE_SECRET_KEY)", r.stripe)}

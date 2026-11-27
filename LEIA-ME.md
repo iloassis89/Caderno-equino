@@ -89,6 +89,17 @@ update affiliates set user_id = (select id from auth.users where email = 'email@
 
 Regra da comissão: 50% da receita líquida (depois da taxa do Stripe/loja) para cada lado; o desconto do cupom sai da metade do influenciador. Vale enquanto o cliente pagar.
 
+## IA grátis (Google Gemini) — você não paga nada
+A IA do app ("Pergunte à IA", avaliação da alimentação e triagem do suporte) usa o plano grátis do Google Gemini.
+1. Entre em aistudio.google.com/apikey com a sua conta Google (sem cartão) e toque em **Create API key**. Copie a chave (começa com `AIza`).
+2. No Supabase (projeto IAS Horse) → Edge Functions → Secrets → adicione `GEMINI_API_KEY` com a chave. Não mande a chave no chat.
+3. No app: Mais → Administração → Diagnóstico → "Testar IA".
+Limites: grátis 1 pergunta por dia, pago 5 por dia (a avaliação da alimentação conta como uma). O app inteiro para em 400 perguntas por dia e o suporte em 60 mensagens por dia, para caber no grátis do Google (cerca de 500 por dia). As respostas não têm memória e só ficam guardadas se a pessoa tocar em "Guardar". Atenção: no plano grátis o Google pode usar o que é perguntado para melhorar os produtos dele; por isso o app pede para não escrever nome, telefone, CPF ou endereço.
+`ANTHROPIC_API_KEY` virou opcional (paga): só é usada se não houver `GEMINI_API_KEY`.
+
+## Preços por quantidade de animais
+Quanto mais animais e mais meses, menor o preço por animal: 1 animal R$ 9,90; 2 R$ 18,90; 3 R$ 26,90; 4 R$ 34,90; até 5 R$ 39,90; até 15 R$ 89,90; até 40 R$ 179,90 por mês. Desconto por período: 1 animal 6/8/16% (3/6/12 meses); 2–4 animais 7/10/18%; até 5 8/12/20%; 15 ou 40 10/14/22%. Ao mudar o preço mensal em `plans`, rode `select public.recalcular_planos_periodos();` e crie o novo preço no Stripe (produto `ce_<plano>`, preço padrão).
+
 ## Suporte e avisos por e-mail
 O chat de suporte (Mais → Suporte e atendimento) é particular. A IA tenta resolver; se não der, passa para você, com prazo de 48 horas. Você responde em Administração → Suporte, e a resposta aparece no chat da pessoa.
 

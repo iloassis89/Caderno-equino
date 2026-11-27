@@ -3,10 +3,14 @@
 // A autenticação é feita dentro da função (usuarioDaRequisicao).
 import { admin, cors, json, usuarioDaRequisicao } from "../_shared/comum.ts";
 
-const CHAVE_IA = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+// IA do suporte: Gemini GRÁTIS (GEMINI_API_KEY) primeiro; Anthropic só se não houver Gemini.
+const CHAVE_GEMINI = (Deno.env.get("GEMINI_API_KEY") ?? "").trim();
+const CHAVE_ANTHROPIC = (Deno.env.get("ANTHROPIC_API_KEY") ?? "").trim();
+const CHAVE_IA = CHAVE_GEMINI || CHAVE_ANTHROPIC;
 const MODELO = Deno.env.get("ASSISTENTE_MODELO") ?? "claude-haiku-5-5";
-const LIMITE_PESSOA = Number(Deno.env.get("SUPORTE_LIMITE_PESSOA") ?? "40");
-const LIMITE_GLOBAL = Number(Deno.env.get("SUPORTE_LIMITE_DIA") ?? "1000");
+const MODELO_GEMINI = Deno.env.get("IA_MODELO_GEMINI") ?? "gemini-flash-lite-latest";
+const LIMITE_PESSOA = Number(Deno.env.get("SUPORTE_LIMITE_PESSOA") ?? "15");
+const LIMITE_GLOBAL = Number(Deno.env.get("SUPORTE_LIMITE_DIA") ?? "60"); // cada mensagem pode usar até 4 chamadas; cabe no grátis do Gemini
 const APP_URL = Deno.env.get("APP_URL") ?? "https://iashorse.pages.dev/";
 
 const ASSUNTOS: Record<string, string> = {
@@ -236,13 +240,14 @@ async function responderComIA(conversa: any, user: any): Promise<{ texto: string
   while (historico.length && historico[0].role !== "user") historico.shift();
   if (!historico.length || historico[historico.length - 1].role !== "user") throw new Error("histórico sem mensagem da pessoa");
 
+  if (CHAVE_GEMINI) return responderComGemini(conversa, user, historico);
   let registrou = false;
   const VOLTAS = 4;
   for (let volta = 0; volta < VOLTAS; volta++) {
     const ultima = volta === VOLTAS - 1;
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "x-api-key": CHAVE_IA, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      headers: { "x-api-key": CHAVE_ANTHROPIC, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({ model: MODELO, max_tokens: 700, system: sistema(conversa.assunto), messages: historico, ...(ultima ? {} : { tools: FERRAMENTAS }) }),
     });
     if (!r.ok) throw Object.assign(new Error(`API ${r.status}: ${await r.text()}`), { registrou });
@@ -268,6 +273,58 @@ async function responderComIA(conversa: any, user: any): Promise<{ texto: string
       resultados.push({ type: "tool_result", tool_use_id: u.id, content: saida, ...(erro ? { is_error: true } : {}) });
     }
     historico.push({ role: "user", content: resultados });
+    const { data: atual } = await admin.from("suporte_conversas").select("*").eq("id", conversa.id).single();
+    if (atual) conversa = atual;
+  }
+  return { texto: "", registrou };
+}
+
+// Mesmo fluxo com o Gemini (chamada de funções). As partes do modelo voltam como vieram (assinaturas de raciocínio).
+const FERRAMENTAS_GEMINI = [{
+  functionDeclarations: FERRAMENTAS.map((f: any) => ({
+    name: f.name, description: f.description,
+    ...(Object.keys(f.input_schema?.properties ?? {}).length
+      ? { parameters: JSON.parse(JSON.stringify(f.input_schema, (k, v) => (k === "minimum" || k === "maximum" ? undefined : v))) } : {}),
+  })),
+}];
+
+async function responderComGemini(conversa: any, user: any, historico: any[]): Promise<{ texto: string; registrou: boolean }> {
+  const contents: any[] = historico.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: String(m.content) }] }));
+  let registrou = false;
+  const VOLTAS = 4;
+  for (let volta = 0; volta < VOLTAS; volta++) {
+    const ultima = volta === VOLTAS - 1;
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODELO_GEMINI}:generateContent`, {
+      method: "POST",
+      headers: { "x-goog-api-key": CHAVE_GEMINI, "content-type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: sistema(conversa.assunto) }] }, contents,
+        ...(ultima ? {} : { tools: FERRAMENTAS_GEMINI }),
+      }),
+    });
+    if (!r.ok) throw Object.assign(new Error(`Gemini ${r.status}: ${(await r.text()).slice(0, 300)}`), { registrou });
+    const dados = await r.json();
+    const conteudo = dados.candidates?.[0]?.content ?? { role: "model", parts: [] };
+    const partes: any[] = conteudo.parts ?? [];
+    const chamadas = partes.filter((p) => p.functionCall);
+    if (!chamadas.length) {
+      const texto = partes.map((p) => p.text ?? "").join("").replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#{1,6}\s*/gm, "").replace(/\*/g, "").trim();
+      return { texto, registrou };
+    }
+    contents.push({ role: "model", parts: partes });
+    const respostas = [];
+    for (const p of chamadas) {
+      const nome = String(p.functionCall.name ?? "");
+      let saida: string;
+      if (!FERRAMENTAS.some((f) => f.name === nome)) saida = "Ferramenta desconhecida.";
+      else if (COM_EFEITO.has(nome) && registrou) saida = "Já foi feito um registro nesta mensagem. Não repita; confirme o que já foi feito.";
+      else {
+        saida = await executarFerramenta(nome, p.functionCall.args ?? {}, conversa, user);
+        if (COM_EFEITO.has(nome) && !saida.startsWith("ERRO")) registrou = true;
+      }
+      respostas.push({ functionResponse: { name: nome, response: { resultado: saida } } });
+    }
+    contents.push({ role: "user", parts: respostas });
     const { data: atual } = await admin.from("suporte_conversas").select("*").eq("id", conversa.id).single();
     if (atual) conversa = atual;
   }

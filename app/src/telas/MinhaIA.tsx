@@ -45,7 +45,7 @@ export default function MinhaIA() {
   if (st.carregando && !st.dados) return <Tela titulo="Minha IA" voltar><Carregando /></Tela>;
   const conta = st.dados?.conta;
   return (
-    <Tela titulo="Minha IA" voltar subtitulo="O assistente e a avaliação da alimentação podem usar a sua própria conta de IA, sem o limite diário do app.">
+    <Tela titulo="Minha IA" voltar subtitulo="A IA do app é grátis e tem poucas perguntas por dia. Se quiser perguntar mais, vincule a sua própria conta (o Gemini do Google tem plano grátis).">
       <Aviso texto={st.erro} tipo="erro" />
       {conta ? (
         <Cartao style={{ backgroundColor: cor.mataClara, borderColor: cor.mata }}>
@@ -59,14 +59,14 @@ export default function MinhaIA() {
           <BotaoConfirmar titulo="Desvincular" icone="link-off" onConfirmar={async () => {
             const { erro } = await chamarFuncao("ia-conta", { acao: "desvincular" });
             if (erro) return setMsg({ t: erro, tipo: "erro" });
-            setMsg({ t: "Desvinculada. O app volta a usar a IA dele, com limite por dia.", tipo: "ok" });
+            setMsg({ t: "Desvinculada. O app volta a usar a IA dele, com poucas perguntas por dia.", tipo: "ok" });
             st.recarregar();
           }} />
         </Cartao>
       ) : (
         <Cartao>
           <Text style={est.texto}>
-            {st.dados?.ia_do_app ? "Hoje você usa a IA do app: 5 perguntas por dia no plano grátis e 30 no pago." : "A IA do app ainda não está ligada. Vincule a sua para usar o assistente."}
+            {st.dados?.ia_do_app ? "Hoje você usa a IA do app: 1 pergunta por dia no plano grátis e 5 no pago (a avaliação da alimentação conta como uma)." : "A IA do app ainda não está ligada. Vincule a sua para usar o assistente."}
           </Text>
         </Cartao>
       )}

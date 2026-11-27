@@ -1,4 +1,5 @@
-// Fala com a IA: a do próprio usuário (Gemini, ChatGPT/OpenAI ou Claude/Anthropic) ou, sem ela, a do app (Anthropic).
+// Fala com a IA: a do próprio usuário (Gemini, ChatGPT/OpenAI ou Claude/Anthropic) ou, sem ela, a do app.
+// A do app usa o plano GRÁTIS do Google Gemini (GEMINI_API_KEY); a Anthropic só entra se não houver Gemini.
 import { admin } from "./comum.ts";
 
 export type Provedor = "gemini" | "openai" | "anthropic";
@@ -8,7 +9,7 @@ export type ContaIA = { provedor: Provedor; chave: string; propria: boolean };
 export const NOME_PROVEDOR: Record<Provedor, string> = { gemini: "Google Gemini", openai: "ChatGPT (OpenAI)", anthropic: "Claude (Anthropic)" };
 
 const MODELO: Record<Provedor, string> = {
-  gemini: Deno.env.get("IA_MODELO_GEMINI") ?? "gemini-flash-latest",
+  gemini: Deno.env.get("IA_MODELO_GEMINI") ?? "gemini-flash-lite-latest",
   openai: Deno.env.get("IA_MODELO_OPENAI") ?? "gpt-5.4-mini",
   anthropic: Deno.env.get("ASSISTENTE_MODELO") ?? "claude-haiku-5-5",
 };
@@ -18,8 +19,15 @@ export async function contaIA(userId: string): Promise<ContaIA | null> {
   const { data } = await admin.rpc("chave_ia", { p_user: userId });
   const c = data?.[0];
   if (c?.chave && c?.provedor) return { provedor: c.provedor, chave: c.chave, propria: true };
-  const doApp = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
-  return doApp ? { provedor: "anthropic", chave: doApp, propria: false } : null;
+  return contaDoApp();
+}
+
+/** IA do app: Gemini grátis primeiro; Anthropic (paga) só se não houver Gemini. */
+export function contaDoApp(): ContaIA | null {
+  const gemini = (Deno.env.get("GEMINI_API_KEY") ?? "").trim();
+  if (gemini) return { provedor: "gemini", chave: gemini, propria: false };
+  const anthropic = (Deno.env.get("ANTHROPIC_API_KEY") ?? "").trim();
+  return anthropic ? { provedor: "anthropic", chave: anthropic, propria: false } : null;
 }
 
 export class ErroIA extends Error {

@@ -115,8 +115,8 @@ export function AtalhoAssistente() {
       <View style={[est.linha, { gap: 12 }]}>
         <Icone nome="chat-question-outline" tamanho={32} cor={cor.mata} />
         <View style={{ flex: 1 }}>
-          <Text style={[est.texto, { fontWeight: "700" }]}>Perguntar ao assistente</Text>
-          <Text style={est.textoSuave}>Dúvidas simples sobre o cavalo ou sobre o app</Text>
+          <Text style={[est.texto, { fontWeight: "700" }]}>Pergunte à IA</Text>
+          <Text style={est.textoSuave}>Uma dúvida rápida por vez, resposta na hora</Text>
         </View>
         <Icone nome="chevron-right" tamanho={28} cor={cor.tintaSuave} />
       </View>

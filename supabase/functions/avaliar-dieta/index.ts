@@ -4,7 +4,7 @@ import { admin, cors, json, usuarioDaRequisicao } from "../_shared/comum.ts";
 import { contaIA, erroAmigavel, perguntarIA } from "../_shared/ia.ts";
 import { REFERENCIA_NUTRICAO } from "../_shared/nutricao_ref.ts";
 
-const LIMITE_GLOBAL = Number(Deno.env.get("ASSISTENTE_LIMITE_DIA") ?? "500");
+const LIMITE_GLOBAL = Number(Deno.env.get("ASSISTENTE_LIMITE_DIA") ?? "400");
 const LIMITE_PROPRIA = Number(Deno.env.get("IA_PROPRIA_LIMITE_DIA") ?? "200");
 
 // Opções que a pessoa marca no app (nada de texto livre obrigatório)
@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
       const { data: uso, error: errUso } = await admin.rpc("usar_assistente", { p_user: user.id, p_limite_global: LIMITE_GLOBAL });
       if (errUso) throw errUso;
       const u = uso?.[0];
-      if (!u?.permitido) return json({ erro: `Você já usou as ${u?.limite ?? ""} consultas de IA de hoje. Amanhã libera de novo. Com a sua própria IA (Mais → Minha IA) não tem esse limite.` }, 429);
+      if (!u?.permitido) return json({ erro: `Você já usou as ${u?.limite ?? ""} consultas de IA de hoje. Amanhã libera de novo. Com a sua própria IA (Mais → Minha IA) dá para consultar mais.` }, 429);
     }
 
     const cat = CATEGORIAS[corpo.categoria] ?? "não informado";
@@ -126,9 +126,8 @@ Deno.serve(async (req) => {
       if (!conta.propria) await admin.rpc("devolver_assistente", { p_user: user.id });
       return json({ erro: "A IA respondeu de um jeito que não entendi. Tente de novo." }, 502);
     }
-    const { data: salvo } = await admin.from("dieta_avaliacoes")
-      .insert({ owner_id: user.id, animal_id: animalId, texto: JSON.stringify(avaliacao) }).select("id,created_at").single();
-    return json({ avaliacao, id: salvo?.id, created_at: salvo?.created_at, propria: conta.propria });
+    // não guarda sozinho: a pessoa decide no app se quer guardar
+    return json({ avaliacao, created_at: new Date().toISOString(), propria: conta.propria });
   } catch (e) {
     console.error("avaliar-dieta", e);
     return json({ erro: "Não foi possível avaliar agora." }, 500);

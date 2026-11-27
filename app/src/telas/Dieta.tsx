@@ -77,8 +77,19 @@ function AvaliacaoIA({ animalId }: { animalId: string }) {
   const [obs, setObs] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [res, setRes] = useState<{ av: Avaliacao; quando: string } | null>(null);
+  const [res, setRes] = useState<{ av: Avaliacao; quando: string } | null>(null); // nova, ainda não guardada
+  const [guardando, setGuardando] = useState(false);
   const atual = res ?? ultima.dados;
+
+  async function guardar() {
+    if (!res || guardando) return;
+    setGuardando(true); setErro(null);
+    const { error } = await supabase.from("dieta_avaliacoes").insert({ animal_id: animalId, texto: JSON.stringify(res.av) });
+    setGuardando(false);
+    if (error) return setErro("Não foi possível guardar. Confira a internet e tente de novo.");
+    setRes(null);
+    ultima.recarregar();
+  }
 
   async function avaliar() {
     if (ocupado) return;
@@ -119,6 +130,15 @@ function AvaliacaoIA({ animalId }: { animalId: string }) {
           <ListaIA titulo="Pode estar faltando" itens={atual.av.faltas} icone="arrow-down-circle-outline" fundo={cor.ouroClaro} texto={cor.ouro} />
           <ListaIA titulo="Para conversar com o veterinário" itens={atual.av.ajustes} icone="stethoscope" fundo={cor.cartao} texto={cor.mata} />
           <ListaIA titulo="Falta saber" itens={atual.av.falta_saber} icone="help-circle-outline" fundo={cor.couroClaro} texto={cor.couro} />
+          <Aviso texto={erro} tipo="erro" />
+          {res ? (
+            <View style={{ marginBottom: 8 }}>
+              <Text style={[est.textoSuave, { marginBottom: 4 }]}>Esta avaliação ainda não foi guardada. Se não guardar, ela some quando você sair.</Text>
+              <Botao titulo="Guardar esta avaliação" icone="content-save-outline" tipo="secundario" onPress={guardar} carregando={guardando} />
+            </View>
+          ) : (
+            <Text style={[est.textoSuave, { marginBottom: 4 }]}>Avaliação guardada.</Text>
+          )}
           <Text style={[est.textoSuave, { marginBottom: 8 }]}>
             Avaliado em {br(atual.quando.slice(0, 10))}. Feito por inteligência artificial com base em referências de nutrição. Pode errar: confirme com o veterinário ou zootecnista antes de mudar a alimentação, sempre aos poucos.
           </Text>

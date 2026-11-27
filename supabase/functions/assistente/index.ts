@@ -1,11 +1,12 @@
 // Assistente do IAS Horse: tira dúvidas simples sobre manejo e sobre o uso do app.
-// Nunca dá diagnóstico nem indica remédio. Limite diário por plano (grátis 5, pago 30).
+// Nunca dá diagnóstico nem indica remédio. Limite diário curto (grátis 1, pago 5). Sem memória: cada pergunta é avulsa e nada é guardado
+// no servidor; a pessoa pode tocar em "Guardar" no app para salvar uma resposta.
 // Quem vincula a própria IA (Mais → Minha IA) usa a conta dela, sem a cota do app.
 import { admin, cors, json, usuarioDaRequisicao } from "../_shared/comum.ts";
 import { contaIA, erroAmigavel, perguntarIA, textoSimples } from "../_shared/ia.ts";
 
 const LIMITE_PROPRIA = Number(Deno.env.get("IA_PROPRIA_LIMITE_DIA") ?? "200");
-const LIMITE_GLOBAL = Number(Deno.env.get("ASSISTENTE_LIMITE_DIA") ?? "500"); // teto de perguntas por dia no app inteiro
+const LIMITE_GLOBAL = Number(Deno.env.get("ASSISTENTE_LIMITE_DIA") ?? "400"); // teto por dia no app inteiro (cabe no grátis do Gemini)
 
 const SISTEMA = `Você é o assistente do aplicativo IAS Horse, um caderno de manejo de cavalos usado por criadores do interior do Brasil, muitos com pouca prática com celular.
 
@@ -31,7 +32,8 @@ Como o app funciona (para ensinar):
 - Início: "Para fazer hoje"; um toque marca como feito.
 - Animais → ficha: Alimentação (anotar o que come e "Avaliar a alimentação com a IA"), Documentos, PDF e WhatsApp para o veterinário (planos pagos).
 - Mais: Estoque, Todas as anotações, Resumo da semana, Minha IA (usar a própria conta Gemini, ChatGPT ou Claude), Ajuda (dicas, tutorial, falar com a gente), Meu plano.
-- Plano grátis: 1 animal, anotações, lembretes, alimentação com IA, assistente 5 por dia, 30 dias de histórico. Pago a partir de R$ 9,90 por mês: mais animais, PDF/WhatsApp, estoque, fotos nas anotações, histórico completo, assistente 30 por dia.`;
+- Plano grátis: 1 animal, anotações, lembretes, alimentação, 1 consulta à IA por dia, 30 dias de histórico. Pago a partir de R$ 9,90 por mês (planos de 1, 3, 6 e 12 meses, Pix ou cartão): mais animais, PDF/WhatsApp, estoque, fotos nas anotações, histórico completo, 5 consultas à IA por dia.
+- Esta conversa não tem memória: responda só à pergunta atual.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -41,11 +43,6 @@ Deno.serve(async (req) => {
     if (!user) return json({ erro: "Faça login para usar o assistente." }, 401);
 
     const corpo = await req.json().catch(() => ({}));
-    // Novo formato: só a pergunta nova. O histórico vem do banco (o app não pode inventar respostas anteriores).
-    if (corpo.limpar === true) {
-      await admin.from("assistente_mensagens").delete().eq("user_id", user.id);
-      return json({ ok: true });
-    }
     const pergunta = typeof corpo.pergunta === "string" ? corpo.pergunta.trim().slice(0, 1000) : "";
     if (!pergunta) return json({ erro: "Escreva sua pergunta." }, 400);
 
@@ -64,15 +61,11 @@ Deno.serve(async (req) => {
     if (!conta.propria && !u?.permitido) {
       const msg = (u?.usadas ?? 0) < (u?.limite ?? 0)
         ? "O assistente está com muitas perguntas hoje. Tente amanhã."
-        : `Você já fez ${u?.limite ?? ""} perguntas hoje. Amanhã libera de novo. Com a sua própria IA (Mais → Minha IA) não tem esse limite.`;
+        : `Você já fez ${u?.limite ?? ""} perguntas hoje. Amanhã libera de novo. Com a sua própria IA (Mais → Minha IA) dá para perguntar mais.`;
       return json({ erro: msg, usadas: u?.usadas, limite: u?.limite }, 429);
     }
 
-    const { data: hist } = await admin.from("assistente_mensagens").select("papel,texto")
-      .eq("user_id", user.id).order("id", { ascending: false }).limit(8);
-    const mensagens = [...(hist ?? []).reverse(), { papel: "usuario", texto: pergunta }]
-      .map((m: any) => ({ role: m.papel === "usuario" ? "user" : "assistant", content: m.texto }));
-    while (mensagens.length && mensagens[0].role !== "user") mensagens.shift();
+    const mensagens = [{ role: "user" as const, content: pergunta }];
 
     let resposta = "";
     try {
@@ -84,10 +77,6 @@ Deno.serve(async (req) => {
       return json({ erro: erroAmigavel(e, conta.propria) + (conta.propria ? "" : " Sua pergunta não foi contada.") }, 502);
     }
 
-    await admin.from("assistente_mensagens").insert([
-      { user_id: user.id, papel: "usuario", texto: pergunta },
-      { user_id: user.id, papel: "assistente", texto: resposta },
-    ]);
     return json({ resposta, usadas: u?.usadas ?? null, limite: u?.limite ?? null, propria: conta.propria });
   } catch (e) {
     console.error("assistente", e);

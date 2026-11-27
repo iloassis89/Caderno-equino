@@ -37,7 +37,7 @@ export function Mais() {
     { t: "Todas as anotações", d: "Com filtros", i: "book-open-variant", r: "Historico" },
     ...(pago ? [{ t: "Resumo da semana", i: "file-chart-outline", r: "Resumo" }] : []),
     { t: "Minha IA", d: "Use a sua conta de IA (Gemini, ChatGPT ou Claude)", i: "robot-outline", r: "MinhaIA" },
-    { t: "Ajuda", d: "Assistente, dicas, como usar, falar com a gente", i: "lifebuoy", r: "Ajuda" },
+    { t: "Ajuda", d: "Pergunte à IA, dicas, como usar, falar com a gente", i: "lifebuoy", r: "Ajuda" },
     { t: "Meu plano", i: "star-outline", r: "Planos" },
     ...(dados?.afiliado ? [{ t: "Painel do parceiro", i: "handshake-outline", r: "Afiliado" }] : []),
     ...(admin ? [{ t: "Administração", i: "shield-account-outline", r: "Admin" }] : []),
@@ -57,7 +57,7 @@ export function Ajuda() {
   const nav = useNav();
   return (
     <Tela titulo="Ajuda" voltar>
-      <ItemMenu t="Perguntar ao assistente" d="Dúvidas simples, com IA" i="chat-question-outline" onPress={() => nav.ir("Assistente")} />
+      <ItemMenu t="Pergunte à IA" d="Dúvida rápida e respostas guardadas" i="chat-question-outline" onPress={() => nav.ir("Assistente")} />
       <ItemMenu t="Dicas" i="lightbulb-on-outline" onPress={() => nav.ir("Dicas")} />
       <ItemMenu t="Como usar o app" i="school-outline" onPress={() => nav.ir("Tutorial")} />
       <ItemMenu t="Falar com a gente" d="Suporte, anúncios, sugestões" i="lifebuoy" onPress={() => nav.ir("Suporte")} />

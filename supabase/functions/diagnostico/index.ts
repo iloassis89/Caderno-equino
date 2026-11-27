@@ -1,7 +1,7 @@
 // Diagnóstico para o administrador: mostra quais chaves estão configuradas (sem mostrar a chave),
 // testa a IA do app e manda um e-mail de teste para o e-mail de avisos.
 import { admin, cors, json, usuarioDaRequisicao } from "../_shared/comum.ts";
-import { perguntarIA } from "../_shared/ia.ts";
+import { contaDoApp, perguntarIA } from "../_shared/ia.ts";
 
 async function ehAdmin(user: any) {
   if (!user?.email || !user.email_confirmed_at) return false;
@@ -18,14 +18,16 @@ Deno.serve(async (req) => {
     const corpo = await req.json().catch(() => ({}));
     const tem = (n: string) => !!(Deno.env.get(n) ?? "").trim();
     const r: Record<string, unknown> = {
-      ia_do_app: tem("ANTHROPIC_API_KEY"), email_brevo: tem("BREVO_API_KEY"), email_resend: tem("RESEND_API_KEY"),
+      ia_gemini: tem("GEMINI_API_KEY"), ia_do_app: tem("GEMINI_API_KEY") || tem("ANTHROPIC_API_KEY"), ia_anthropic: tem("ANTHROPIC_API_KEY"), email_brevo: tem("BREVO_API_KEY"), email_resend: tem("RESEND_API_KEY"),
       email_remetente: tem("EMAIL_REMETENTE"), stripe: tem("STRIPE_SECRET_KEY"), stripe_webhook: tem("STRIPE_WEBHOOK_SECRET"),
     };
 
     if (corpo.testar_ia && r.ia_do_app) {
       try {
-        const t = await perguntarIA({ provedor: "anthropic", chave: Deno.env.get("ANTHROPIC_API_KEY")!, propria: false }, "Responda só OK.", [{ role: "user", content: "Teste" }], 10);
+        const conta = contaDoApp()!;
+        const t = await perguntarIA(conta, "Responda só OK.", [{ role: "user", content: "Teste" }], 10);
         r.teste_ia = t ? "ok" : "sem resposta";
+        r.ia_provedor = conta.provedor;
       } catch (e) { r.teste_ia = String((e as Error).message).slice(0, 200); }
     }
 

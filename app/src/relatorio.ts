@@ -12,7 +12,7 @@ const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp
 
 export async function dadosDoAnimal(animalId: string, dias = 30) {
   const desde = somarDias(hojeISO(), -dias);
-  const [a, r, med, an, di, cuid] = await Promise.all([
+  const [a, r, med, an, di, cuid, cons] = await Promise.all([
     supabase.from("animals").select("*").eq("id", animalId).single(),
     supabase.from("records").select("*").eq("animal_id", animalId).gte("data", desde).order("data", { ascending: false }).order("created_at", { ascending: false }),
     supabase.from("records").select("data,peso_kg,escore_corporal,medidas").eq("animal_id", animalId).eq("status", "realizado")
@@ -23,6 +23,8 @@ export async function dadosDoAnimal(animalId: string, dias = 30) {
     supabase.from("records").select("data,categoria,descricao,status,responsavel").eq("animal_id", animalId).eq("status", "realizado")
       .in("categoria", ["cascos", "dentes", "exames", "medicamento_suplemento", "reproducao", "ocorrencia", "sinal_avaliacao_profissional"])
       .order("data", { ascending: false }).limit(60),
+    // respostas da IA que a pessoa decidiu guardar para este animal
+    supabase.from("consultas_salvas").select("pergunta,resposta,created_at").eq("animal_id", animalId).order("created_at", { ascending: false }).limit(5),
   ]);
   const ultimos: any[] = [];
   for (const c of cuid.data ?? []) if (!ultimos.some((u) => u.categoria === c.categoria)) ultimos.push(c);
@@ -30,7 +32,7 @@ export async function dadosDoAnimal(animalId: string, dias = 30) {
   const ultimoPeso = (med.data ?? []).find((m: any) => m.peso_kg != null)?.peso_kg ?? null;
   return {
     animal: a.data, registros: r.data ?? [], medidas: med.data ?? [], anexos: an.data ?? [], dieta: di.data ?? [],
-    pesoKg: ultimoPeso != null ? Number(ultimoPeso) : null, dias, ultimos,
+    pesoKg: ultimoPeso != null ? Number(ultimoPeso) : null, dias, ultimos, consultas: cons.data ?? [],
   };
 }
 
@@ -83,6 +85,9 @@ Maior refeição de concentrado: ${numBR(dieta.concentradoMaiorRefeicaoKg, 2)} k
 
 <h2>Anotações dos últimos ${d.dias} dias (${d.registros.length})</h2>
 ${d.registros.length ? `<table><tr><th>Data</th><th>O quê</th><th>Situação</th><th>Detalhes</th></tr>${d.registros.map(linhaReg).join("")}</table>` : "<p>Nenhuma.</p>"}
+
+${d.consultas.length ? `<h2>Dúvidas guardadas (respostas gerais de IA, não são orientação veterinária)</h2>
+${d.consultas.map((c: any) => `<p><b>${br(String(c.created_at).slice(0, 10))} — ${esc(c.pergunta)}</b><br>${esc(c.resposta)}</p>`).join("")}` : ""}
 
 <p class="rodape">Informações registradas pelo responsável pelo animal. O ${NOME_APP} não faz diagnóstico nem recomenda medicamentos.
 Faixas de referência de alimentação: ${esc(REFERENCIAS.fontes.join(" "))}</p>
