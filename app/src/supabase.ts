@@ -6,7 +6,7 @@ import { Platform } from "react-native";
 // Chaves públicas (podem ficar no app). As chaves secretas ficam só no servidor.
 export const SUPABASE_URL = "https://pdeztncayjsdjelbpxrp.supabase.co";
 // Endereço do app na web (links de e-mail de cadastro e de troca de senha voltam para cá)
-export const URL_APP_WEB = "https://iloassis89.github.io/Caderno-equino/";
+export const URL_APP_WEB = "https://iashorse.pages.dev/";
 export const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_KaSjsNBicnqs_5L9tgQWog_GvinCv3c";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {

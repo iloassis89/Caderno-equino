@@ -2,13 +2,14 @@ import React from "react";
 import { Text, View } from "react-native";
 import { supabase } from "../supabase";
 import { useCarga } from "../dados";
-import { Botao, Cabecalho, Carregando, Cartao, Icone, Tela, Vazio, useNav } from "../ui";
+import { Botao, Cabecalho, Carregando, Cartao, Icone, Tela, Vazio, useNav, usePlano } from "../ui";
 import { NOME_APP, reais } from "../constantes";
 import { br } from "../datas";
 import { cor, est } from "../tema";
 
 export function Mais() {
   const nav = useNav();
+  const { admin } = usePlano();
   const { dados } = useCarga(async () => {
     const { data: u } = await supabase.auth.getUser();
     const { data: af } = await supabase.from("affiliates").select("id").maybeSingle();
@@ -18,8 +19,12 @@ export function Mais() {
     { t: "Estoque e compras", i: "package-variant-closed", r: "Estoque" },
     { t: "Tarefas", i: "calendar-check", r: "Tarefas" },
     { t: "Resumo da semana", i: "file-chart-outline", r: "Resumo" },
+    { t: "Dicas", i: "lightbulb-on-outline", r: "Dicas" },
+    { t: "Perguntar ao assistente", i: "chat-question-outline", r: "Assistente" },
+    { t: "Como usar o app", i: "school-outline", r: "Tutorial" },
     { t: "Planos e assinatura", i: "star-outline", r: "Planos" },
     ...(dados?.afiliado ? [{ t: "Painel do parceiro", i: "handshake-outline", r: "Afiliado" }] : []),
+    ...(admin ? [{ t: "Administração", i: "shield-account-outline", r: "Admin" }] : []),
   ];
   return (
     <Tela titulo="Mais" subtitulo={dados?.email ?? undefined}>

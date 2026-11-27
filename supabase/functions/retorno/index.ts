@@ -8,7 +8,7 @@ function permitido(destino: string) {
   try {
     const u = new URL(destino);
     if (u.hostname === "localhost" || u.hostname === "127.0.0.1") return true;
-    if (u.origin === "https://iloassis89.github.io") return true; // app web publicado
+    if (u.origin === "https://iashorse.pages.dev" || u.origin === "https://iloassis89.github.io") return true; // app web publicado
     const extras = (Deno.env.get("APP_WEB_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
     return extras.includes(u.origin);
   } catch {

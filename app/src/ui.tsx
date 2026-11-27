@@ -13,7 +13,7 @@ export const NavContexto = createContext<Nav>({ ir: () => {}, voltar: () => {}, 
 export const useNav = () => useContext(NavContexto);
 
 // ---------- Plano do usuário (pago ou grátis) ----------
-export const PlanoContexto = createContext<{ pago: boolean; recarregar: () => void }>({ pago: false, recarregar: () => {} });
+export const PlanoContexto = createContext<{ pago: boolean; admin: boolean; recarregar: () => void }>({ pago: false, admin: false, recarregar: () => {} });
 export const usePlano = () => useContext(PlanoContexto);
 
 export function Icone({ nome, tamanho = 24, cor: c = cor.tinta }: { nome: string; tamanho?: number; cor?: string }) {

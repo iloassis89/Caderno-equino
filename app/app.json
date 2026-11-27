@@ -53,9 +53,6 @@
           "photosPermission": "O IAS Horse usa a galeria para escolher fotos do animal e dos documentos."
         }
       ]
-    ],
-    "experiments": {
-      "baseUrl": "/Caderno-equino"
-    }
+    ]
   }
 }

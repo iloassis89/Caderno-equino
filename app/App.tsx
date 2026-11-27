@@ -18,6 +18,9 @@ import Resumo from "./src/telas/Resumo";
 import Planos from "./src/telas/Planos";
 import Dieta from "./src/telas/Dieta";
 import { Afiliado, Mais } from "./src/telas/Mais";
+import Assistente from "./src/telas/Assistente";
+import { Admin, AdminAnuncios, AdminCortesias, AdminDicas } from "./src/telas/Admin";
+import { Dicas, Tutorial, tutorialJaVisto } from "./src/conteudo";
 
 // Cinco abas, sempre com ícone e nome escrito
 const ABAS = [
@@ -48,9 +51,21 @@ function renderizar(r: Rota) {
     case "Resumo": return <Resumo />;
     case "Planos": return <Planos retorno={p.retorno} />;
     case "Mais": return <Mais />;
+    case "Tutorial": return <TutorialRota />;
     case "Afiliado": return <Afiliado />;
+    case "Dicas": return <Dicas />;
+    case "Assistente": return <Assistente />;
+    case "Admin": return <Admin />;
+    case "AdminCortesias": return <AdminCortesias />;
+    case "AdminAnuncios": return <AdminAnuncios />;
+    case "AdminDicas": return <AdminDicas />;
     default: return <Inicio />;
   }
+}
+
+function TutorialRota() {
+  const nav = React.useContext(NavContexto);
+  return <Tutorial aoConcluir={nav.voltar} />;
 }
 
 // Lê ?status= no retorno do pagamento (web) ou do link do app
@@ -69,21 +84,26 @@ export default function App() {
   const [versao, setVersao] = useState(0);
   const [pago, setPago] = useState(false);
   const [trocarSenha, setTrocarSenha] = useState(false);
+  const [admin, setAdmin] = useState(false);
+  const [mostrarTutorial, setMostrarTutorial] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSessao(data.session));
     const { data: sub } = supabase.auth.onAuthStateChange((evento, s) => {
       setSessao(s);
       if (evento === "PASSWORD_RECOVERY") setTrocarSenha(true);
-      if (evento === "SIGNED_OUT") { setPago(false); setPilha([{ nome: "Inicio" }]); setVersao((v) => v + 1); setTrocarSenha(false); }
+      if (evento === "SIGNED_OUT") { setPago(false); setAdmin(false); setPilha([{ nome: "Inicio" }]); setVersao((v) => v + 1); setTrocarSenha(false); }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
 
   const recarregarPlano = useCallback(() => {
     carregarPlano().then((p) => setPago(ehPago(p))).catch(() => setPago(false));
+    supabase.rpc("is_admin").then(({ data }) => setAdmin(data === true));
   }, []);
   useEffect(() => { if (sessao) recarregarPlano(); }, [sessao, recarregarPlano]);
+  // Primeira vez no app: mostra o tutorial
+  useEffect(() => { if (sessao) tutorialJaVisto().then((visto) => { if (!visto) setMostrarTutorial(true); }); }, [sessao]);
 
   // Volta do Stripe: abre a tela de planos com a mensagem certa
   useEffect(() => {
@@ -151,8 +171,8 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="dark" />
       <SafeAreaView style={{ flex: 1, backgroundColor: cor.papel }} edges={["top", "left", "right"]}>
-        {!sessao ? <Entrar /> : trocarSenha ? <NovaSenha aoConcluir={() => setTrocarSenha(false)} /> : (
-          <PlanoContexto.Provider value={{ pago, recarregar: recarregarPlano }}>
+        {!sessao ? <Entrar /> : trocarSenha ? <NovaSenha aoConcluir={() => setTrocarSenha(false)} /> : mostrarTutorial ? <Tutorial aoConcluir={() => setMostrarTutorial(false)} /> : (
+          <PlanoContexto.Provider value={{ pago, admin, recarregar: recarregarPlano }}>
             <NavContexto.Provider value={nav}>
               <View style={{ flex: 1 }} key={`${pilha.length}-${atual.nome}-${versao}`}>
                 {renderizar(atual)}

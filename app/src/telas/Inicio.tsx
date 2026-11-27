@@ -6,6 +6,7 @@ import { Botao, Cabecalho, Carregando, Cartao, ErroCarga, Icone, Rotulado, Selo,
 import { br, hojeISO, somarDias } from "../datas";
 import { rotuloCategoria } from "../constantes";
 import { cor, est } from "../tema";
+import { Anuncio, AtalhoAssistente, DicaDoDia } from "../conteudo";
 
 export default function Inicio() {
   const nav = useNav();
@@ -70,12 +71,18 @@ export default function Inicio() {
         </>
       )}
 
+      <View style={{ height: 14 }} />
+      <DicaDoDia />
+
       <Cabecalho texto="Atalhos" />
       <View style={{ flexDirection: "row", gap: 10 }}>
         <Atalho icone="package-variant-closed" texto="Estoque" onPress={() => nav.ir("Estoque")} />
         <Atalho icone="calendar-check" texto="Tarefas" onPress={() => nav.ir("Tarefas")} />
         <Atalho icone="file-chart-outline" texto="Resumo da semana" onPress={() => nav.ir("Resumo")} />
       </View>
+      <View style={{ height: 12 }} />
+      <AtalhoAssistente />
+      <Anuncio />
     </Tela>
   );
 }
