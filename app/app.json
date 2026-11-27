@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Caderno Equino",
+    "slug": "caderno-equino",
+    "scheme": "cadernoequino",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F3ECDC"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.cadernoequino",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "app.cadernoequino",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#3E5B3A",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "Caderno Equino",
+      "shortName": "Caderno Equino",
+      "lang": "pt-BR",
+      "themeColor": "#3E5B3A",
+      "backgroundColor": "#F3ECDC",
+      "display": "standalone",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "baseUrl": "/Caderno-equino"
+    }
+  }
+}
