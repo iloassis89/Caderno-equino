@@ -112,6 +112,7 @@ export function AdminAnuncios() {
 
   async function salvar() {
     setMsg(null);
+    if (ocupado) return;
     if (!form.anunciante.trim() || !form.titulo.trim()) return setMsg({ t: "Preencha o anunciante e o título.", tipo: "erro" });
     let link = form.link_url.trim();
     if (link && !/^https?:\/\//i.test(link)) link = `https://${link}`;
@@ -133,7 +134,7 @@ export function AdminAnuncios() {
 
   if (form) {
     return (
-      <Tela titulo={form.id ? "Editar anúncio" : "Novo anúncio"} voltar>
+      <Tela titulo={form.id ? "Editar anúncio" : "Novo anúncio"}>
         <Campo rotulo="Anunciante (quem pagou)" value={form.anunciante} onChangeText={(t) => setForm({ ...form, anunciante: t })} placeholder="Ex.: Casa da Ração Belmonte" />
         <Campo rotulo="Título" value={form.titulo} onChangeText={(t) => setForm({ ...form, titulo: t })} placeholder="Ex.: Ração com 10% de desconto" />
         <Campo rotulo="Texto (opcional)" value={form.texto} onChangeText={(t) => setForm({ ...form, texto: t })} multiline />
@@ -190,28 +191,32 @@ export function AdminAnuncios() {
 // ---------- Dicas ----------
 export function AdminDicas() {
   const [form, setForm] = useState<any | null>(null);
+  const [ocupado, setOcupado] = useState(false);
   const [msg, setMsg] = useState<{ t: string; tipo: "ok" | "erro" } | null>(null);
   const { dados, carregando, erro, recarregar } = useCarga(async () => ok(await supabase.from("dicas").select("*").order("ordem").order("created_at")) ?? []);
 
   async function salvar() {
     setMsg(null);
     if (!form.titulo.trim() || !form.texto.trim()) return setMsg({ t: "Preencha o título e o texto.", tipo: "erro" });
+    if (ocupado) return;
+    setOcupado(true);
     const linha = { titulo: form.titulo.trim(), texto: form.texto.trim(), fonte: form.fonte?.trim() || null };
     const res = form.id ? await supabase.from("dicas").update(linha).eq("id", form.id)
       : await supabase.from("dicas").insert({ ...linha, ordem: (dados?.length ?? 0) + 1 });
+    setOcupado(false);
     if (res.error) return setMsg({ t: mensagemErro(res.error), tipo: "erro" });
     setForm(null); recarregar();
   }
 
   if (form) {
     return (
-      <Tela titulo={form.id ? "Editar dica" : "Nova dica"} voltar>
+      <Tela titulo={form.id ? "Editar dica" : "Nova dica"}>
         <Campo rotulo="Título" value={form.titulo} onChangeText={(t) => setForm({ ...form, titulo: t })} />
         <Campo rotulo="Texto" value={form.texto} onChangeText={(t) => setForm({ ...form, texto: t })} multiline
           dica="Evite indicar remédio ou dose: isso é com o veterinário." />
         <Campo rotulo="Fonte (opcional)" value={form.fonte ?? ""} onChangeText={(t) => setForm({ ...form, fonte: t })} />
         <Aviso texto={msg?.t} tipo={msg?.tipo} />
-        <Botao titulo="Guardar dica" icone="check" onPress={salvar} />
+        <Botao titulo="Guardar dica" icone="check" onPress={salvar} carregando={ocupado} />
         {form.id && <BotaoConfirmar titulo="Apagar dica" onConfirmar={async () => {
           const { error } = await supabase.from("dicas").delete().eq("id", form.id);
           if (error) return setMsg({ t: mensagemErro(error), tipo: "erro" });

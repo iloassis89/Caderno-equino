@@ -40,10 +40,13 @@ export default function Planos({ retorno }: { retorno?: string }) {
     const [planos, atual, assinatura, vinculo] = await Promise.all([
       supabase.from("plans").select("*").order("ordem"),
       carregarPlano(),
-      supabase.from("subscriptions").select("*").in("status", ["ativa", "em_atraso"]).order("created_at", { ascending: false }).limit(1),
+      supabase.from("subscriptions").select("*").in("status", ["ativa", "em_atraso"]).order("created_at", { ascending: false }),
       supabase.from("referrals").select("desconto_pct, coupon_code").eq("customer_id", u.user?.id ?? "").maybeSingle(),
     ]);
-    return { planos: planos.data ?? [], atual, assinatura: assinatura.data?.[0] ?? null, vinculo: vinculo.data };
+    const agora = new Date().toISOString();
+    const validas = (assinatura.data ?? []).filter((x: any) => !x.periodo_fim || x.periodo_fim > agora);
+    const escolhida = validas.find((x: any) => x.fonte === "stripe") ?? validas[0] ?? null;
+    return { planos: planos.data ?? [], atual, assinatura: escolhida, vinculo: vinculo.data };
   });
 
   async function aplicarCupom() {
@@ -109,8 +112,9 @@ export default function Planos({ retorno }: { retorno?: string }) {
       {assinatura && (
         <Cartao style={{ backgroundColor: cor.mataClara }}>
           <Text style={est.texto}>
-            Assinatura {assinatura.status === "em_atraso" ? "com pagamento pendente" : "ativa"}
-            {assinatura.periodo_fim ? ` · renova em ${br(assinatura.periodo_fim)}` : ""}
+            {assinatura.fonte === "manual"
+              ? `Acesso liberado de presente${assinatura.periodo_fim ? ` até ${br(assinatura.periodo_fim)}` : ""}`
+              : `Assinatura ${assinatura.status === "em_atraso" ? "com pagamento pendente" : "ativa"}${assinatura.periodo_fim ? ` · renova em ${br(assinatura.periodo_fim)}` : ""}`}
           </Text>
           {assinatura.fonte === "stripe" && (
             <Botao titulo="Trocar plano, cartão ou cancelar" tipo="secundario" onPress={portal} carregando={ocupado === "portal"} />
@@ -159,7 +163,7 @@ export default function Planos({ retorno }: { retorno?: string }) {
               {p.permite_multiplos_responsaveis ? " · vários responsáveis" : ""}
             </Text>
             {ehAtual ? <Text style={[est.texto, { color: cor.mata, fontWeight: "700", marginTop: 6 }]}>Seu plano atual</Text> :
-              preco > 0 ? <Botao titulo={assinatura ? "Mudar para este" : "Assinar"} onPress={() => (assinatura?.fonte === "stripe" ? portal() : assinar(p.code))}
+              preco > 0 && assinatura?.fonte !== "manual" ? <Botao titulo={assinatura ? "Mudar para este" : "Assinar"} onPress={() => (assinatura?.fonte === "stripe" ? portal() : assinar(p.code))}
                 carregando={ocupado === p.code} /> : null}
           </Cartao>
         );

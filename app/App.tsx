@@ -85,7 +85,7 @@ export default function App() {
   const [pago, setPago] = useState(false);
   const [trocarSenha, setTrocarSenha] = useState(false);
   const [admin, setAdmin] = useState(false);
-  const [mostrarTutorial, setMostrarTutorial] = useState(false);
+  const [mostrarTutorial, setMostrarTutorial] = useState<boolean | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSessao(data.session));
@@ -103,7 +103,8 @@ export default function App() {
   }, []);
   useEffect(() => { if (sessao) recarregarPlano(); }, [sessao, recarregarPlano]);
   // Primeira vez no app: mostra o tutorial
-  useEffect(() => { if (sessao) tutorialJaVisto().then((visto) => { if (!visto) setMostrarTutorial(true); }); }, [sessao]);
+  const logado = !!sessao;
+  useEffect(() => { if (logado) tutorialJaVisto().then((visto) => setMostrarTutorial(!visto)); }, [logado]);
 
   // Volta do Stripe: abre a tela de planos com a mensagem certa
   useEffect(() => {
@@ -160,7 +161,7 @@ export default function App() {
     return () => h.remove();
   }, [pilha, voltarInterno]);
 
-  if (sessao === undefined) {
+  if (sessao === undefined || (sessao && mostrarTutorial === null)) {
     return <View style={{ flex: 1, backgroundColor: cor.papel, justifyContent: "center" }}><ActivityIndicator color={cor.mata} size="large" /></View>;
   }
 

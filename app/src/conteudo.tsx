@@ -8,6 +8,11 @@ import { Botao, Cabecalho, Carregando, Cartao, ErroCarga, Icone, Tela, Vazio, us
 import { NOME_APP } from "./constantes";
 import { cor, est, tam } from "./tema";
 
+function hojeLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // ---------- Tutorial ----------
 const CHAVE_TUTORIAL = "ias_tutorial_visto_v1";
 
@@ -67,8 +72,9 @@ export function DicaDoDia() {
   const nav = useNav();
   const { dados } = useCarga(carregarDicas);
   if (!dados || dados.length === 0) return null;
-  const hoje = Math.floor(Date.now() / 86400000);
-  const d: any = dados[hoje % dados.length];
+  const [a, m, dd] = hojeLocal().split("-").map(Number);
+  const indice = Math.floor(Date.UTC(a, m - 1, dd) / 86400000);
+  const d: any = dados[indice % dados.length];
   return (
     <Cartao onPress={() => nav.ir("Dicas")} style={{ backgroundColor: cor.ouroClaro, borderColor: cor.palha }}>
       <View style={[est.linha, { gap: 8, marginBottom: 4 }]}>
@@ -131,9 +137,9 @@ export function Anuncio() {
     (async () => {
       try {
         if (!cacheAnuncios || Date.now() - cacheAnuncios.quando > 5 * 60 * 1000) {
-          const lista = ok(await supabase.from("anuncios").select("id,anunciante,titulo,texto,imagem_url,link_url")
-            .eq("ativo", true).lte("inicio", new Date().toISOString().slice(0, 10))) ?? [];
-          const hoje = new Date().toISOString().slice(0, 10);
+          const hoje = hojeLocal();
+          const lista = ok(await supabase.from("anuncios").select("id,anunciante,titulo,texto,imagem_url,link_url,fim,publico")
+            .eq("ativo", true).lte("inicio", hoje)) ?? [];
           cacheAnuncios = { quando: Date.now(), lista: lista.filter((a: any) => !a.fim || a.fim >= hoje) };
         }
         const l = cacheAnuncios.lista;
@@ -150,11 +156,11 @@ export function Anuncio() {
   }, [anuncio]);
   if (!anuncio) return null;
   async function abrir() {
-    if (!anuncio.link_url) return;
+    if (!anuncio.link_url || !/^https:\/\//i.test(anuncio.link_url)) return;
     supabase.rpc("contar_anuncio", { p_id: anuncio.id, p_clique: true }).then(() => {});
     if (Platform.OS === "web") {
       // @ts-ignore
-      window.open(anuncio.link_url, "_blank");
+      window.open(anuncio.link_url, "_blank", "noopener,noreferrer");
     } else {
       Linking.openURL(anuncio.link_url);
     }
