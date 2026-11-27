@@ -45,7 +45,7 @@ export default function Entrar() {
   }
 
   return (
-    <Tela titulo="Caderno Equino" subtitulo="O manejo dos seus animais, organizado. Menos papel perdido, mais tempo para você.">
+    <Tela titulo="IAS Horse" subtitulo="O caderno do seu cavalo no celular. Tudo anotado, nada esquecido.">
       <View style={{ alignItems: "center", marginVertical: 8 }}>
         <Image source={Platform.OS === "web" ? { uri: "icon-192.png" } : require("../../assets/icon.png")} style={{ width: 96, height: 96, borderRadius: 20 }} />
       </View>
@@ -57,13 +57,13 @@ export default function Entrar() {
       {modo === "criar" && <Campo rotulo="Seu nome" value={nome} onChangeText={setNome} autoComplete="name" />}
       <Campo rotulo="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
       {modo !== "esqueci" && (
-        <Campo rotulo="Senha" value={senha} onChangeText={setSenha} secureTextEntry autoComplete={modo === "criar" ? "new-password" : "current-password"}
+        <Campo rotulo="Senha" value={senha} onChangeText={setSenha} senha autoComplete={modo === "criar" ? "new-password" : "current-password"}
           dica={modo === "criar" ? "Mínimo de 6 caracteres." : undefined} />
       )}
       <Aviso texto={msg?.t} tipo={msg?.tipo} />
       <Botao titulo={{ entrar: "Entrar", criar: "Criar minha conta", esqueci: "Enviar link" }[modo]} onPress={enviar} carregando={carregando} />
       <Text style={[est.textoSuave, { marginTop: 18, textAlign: "center" }]}>
-        1 animal grátis para sempre. Sem cartão para começar.
+        1 animal grátis. Sem cartão para começar.
       </Text>
       <Text style={[est.textoSuave, { marginTop: 6, textAlign: "center", color: cor.tintaSuave, fontSize: 12 }]}>
         O app registra e organiza. Não substitui o médico-veterinário.

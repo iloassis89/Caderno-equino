@@ -1,34 +1,38 @@
 import { Platform, StyleSheet } from "react-native";
 
-// Paleta: mata, couro, papel, palha
+// Paleta: mata, couro, papel, palha. Contraste alto para leitura no sol.
 export const cor = {
   papel: "#F3ECDC",
-  papelEscuro: "#E8DEC6",
-  cartao: "#FBF7EE",
-  tinta: "#2B2620",
-  tintaSuave: "#5E554A",
-  mata: "#3E5B3A",
+  cartao: "#FFFDF7",
+  tinta: "#1F1B16",
+  tintaSuave: "#4F473D",
+  mata: "#2F4B2C",
   mataClara: "#DCE6D3",
-  couro: "#8A5A2E",
+  couro: "#7A4A20",
   couroClaro: "#F0E0CC",
   palha: "#D9B26F",
-  barro: "#A4462E",
+  barro: "#9A3A22",
   barroClaro: "#F6DCD3",
-  linha: "#D6CBB2",
+  ouro: "#6B5414",
+  ouroClaro: "#F1E7C4",
+  linha: "#CDBF9F",
   branco: "#FFFFFF",
 };
 
 export const fonteTitulo = Platform.select({ ios: "Georgia", android: "serif", default: "Georgia, 'Times New Roman', serif" });
 
+// Tamanhos pensados para quem tem pouca prática com celular
+export const tam = { texto: 18, pequeno: 16, titulo: 28, subtitulo: 21, toque: 56 };
+
 export const est = StyleSheet.create({
   tela: { flex: 1, backgroundColor: cor.papel },
-  conteudo: { padding: 16, paddingBottom: 48, maxWidth: 720, width: "100%", alignSelf: "center" },
-  titulo: { fontFamily: fonteTitulo, fontSize: 26, color: cor.tinta, marginBottom: 4 },
-  subtitulo: { fontFamily: fonteTitulo, fontSize: 19, color: cor.tinta, marginTop: 18, marginBottom: 8 },
-  texto: { fontSize: 16, color: cor.tinta, lineHeight: 22 },
-  textoSuave: { fontSize: 14, color: cor.tintaSuave, lineHeight: 20 },
+  conteudo: { padding: 16, paddingBottom: 56, maxWidth: 720, width: "100%", alignSelf: "center" },
+  titulo: { fontFamily: fonteTitulo, fontSize: tam.titulo, color: cor.tinta, marginBottom: 4 },
+  subtitulo: { fontFamily: fonteTitulo, fontSize: tam.subtitulo, color: cor.tinta, marginTop: 22, marginBottom: 10 },
+  texto: { fontSize: tam.texto, color: cor.tinta, lineHeight: 26 },
+  textoSuave: { fontSize: tam.pequeno, color: cor.tintaSuave, lineHeight: 23 },
   cartao: {
-    backgroundColor: cor.cartao, borderRadius: 10, padding: 14, marginBottom: 10,
+    backgroundColor: cor.cartao, borderRadius: 12, padding: 16, marginBottom: 12,
     borderWidth: 1, borderColor: cor.linha,
   },
   linha: { flexDirection: "row", alignItems: "center" },

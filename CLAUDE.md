@@ -1,4 +1,4 @@
-# Caderno Equino — instruções para o Claude
+# IAS Horse (antigo Caderno Equino) — instruções para o Claude
 
 Leia primeiro o briefing do projeto: https://claude.ai/artifact/SbPDCQx8XRp5ky7wtCjXyH
 e o `LEIA-ME.md` desta pasta.
@@ -18,4 +18,7 @@ e o `LEIA-ME.md` desta pasta.
 - Modo de teste até o Ilo autorizar produção.
 - Nunca pedir chaves secretas no chat; usar conectores ou segredos do Supabase.
 - Ao fim de cada sessão, anotar o progresso no briefing.
-- Publicar a web: `cd app && npx expo export --platform web --output-dir dist`; depois embutir o JS do bundle no `index.html` (script inline, trocando `</script` por `<\/script`), copiar `index.html`, `manifest.json`, `sw.js`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png`, `favicon.ico` e `.nojekyll` para a branch `gh-pages`. A API de Pages não é acessível pelo proxy; o Pages já está ativado na `gh-pages`.
+- Publicar a web: `cd app && npx expo export --platform web --output-dir dist && touch dist/.nojekyll`, depois enviar todo o conteúdo de `dist` para a branch `gh-pages` (o Pages já está ativado nela; a API de Pages não é acessível pelo proxy).
+- Android: o GitHub Actions (`.github/workflows/android.yml`) gera o APK a cada push em `app/` e publica em Releases → `android-teste`.
+- Navegação: o app usa uma pilha própria em `App.tsx` (não usa Expo Router); manter assim para não refazer as telas.
+- Plano grátis: 1 animal, anotações, foto e registro do animal, tarefas, últimos 30 dias. Pago (a partir de R$ 9,90): PDF/WhatsApp, dieta, estoque, fotos nas anotações, histórico completo, resumo semanal. Regras no banco: `plano_pago()` e RLS de `anexos`, `dieta_itens`, `stock_*`.

@@ -4,7 +4,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { chamarFuncao, supabase, mensagemErro } from "../supabase";
 import { carregarPlano, useCarga } from "../dados";
-import { Aviso, Botao, Cabecalho, Campo, Carregando, Cartao, Tela } from "../ui";
+import { Aviso, Botao, Cabecalho, Campo, Carregando, Cartao, Tela, usePlano } from "../ui";
 import { reais } from "../constantes";
 import { br } from "../datas";
 import { cor, est } from "../tema";
@@ -33,6 +33,7 @@ export default function Planos({ retorno }: { retorno?: string }) {
       : retorno === "cancelado" ? { t: "Pagamento não concluído. Nada foi cobrado.", tipo: "info" } : null,
   );
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const planoCtx = usePlano();
 
   const { dados, carregando, recarregar } = useCarga(async () => {
     const { data: u } = await supabase.auth.getUser();
@@ -68,6 +69,7 @@ export default function Planos({ retorno }: { retorno?: string }) {
     setOcupado(null);
     // aguarda o aviso do Stripe chegar ao servidor
     for (let i = 0; i < 4; i++) { await new Promise((r) => setTimeout(r, 2500)); await recarregar(); }
+    planoCtx.recarregar();
   }
 
   async function portal() {
@@ -78,6 +80,7 @@ export default function Planos({ retorno }: { retorno?: string }) {
     await abrir(data.url, destino);
     setOcupado(null);
     recarregar();
+    planoCtx.recarregar();
   }
 
   if (carregando && !dados) return <Tela titulo="Planos" voltar><Carregando /></Tela>;
@@ -99,6 +102,13 @@ export default function Planos({ retorno }: { retorno?: string }) {
         </Cartao>
       )}
 
+      <Cartao>
+        <Text style={[est.texto, { fontWeight: "700" }]}>Grátis (1 animal)</Text>
+        <Text style={est.texto}>Anotações, foto e documento de registro do animal, tarefas e os últimos 30 dias de histórico.</Text>
+        <Text style={[est.texto, { fontWeight: "700", marginTop: 10 }]}>A partir de R$ 9,90 por mês</Text>
+        <Text style={est.texto}>Tudo do grátis, mais: relatório em PDF e envio pelo WhatsApp ao veterinário, cálculo da alimentação, estoque e gastos, fotos nas anotações, histórico completo, evolução do peso e resumo da semana.</Text>
+      </Cartao>
+
       <Cabecalho texto="Cupom de indicação" />
       {vinculo ? (
         <Text style={est.texto}>Cupom <Text style={{ fontWeight: "700" }}>{vinculo.coupon_code}</Text> ativo: {desconto}% de desconto em todas as mensalidades.</Text>
@@ -109,7 +119,7 @@ export default function Planos({ retorno }: { retorno?: string }) {
         </View>
       )}
 
-      <Cabecalho texto="Escolha o tamanho do seu plantel" />
+      <Cabecalho texto="Escolha pelo número de animais" />
       {planos.map((p: any) => {
         const ehAtual = atual?.code === p.code;
         const preco = p.preco_mensal_centavos;
@@ -129,7 +139,7 @@ export default function Planos({ retorno }: { retorno?: string }) {
             </View>
             <Text style={est.textoSuave}>
               Até {p.max_animais} animal(is){p.max_animais > 1 && preco > 0 ? ` · ${reais(Math.round(comDesconto / p.max_animais))} por animal` : ""}
-              {p.permite_estoque ? " · estoque e custos" : " · sem estoque e custos"}
+              {p.preco_mensal_centavos > 0 ? " · todas as funções" : " · funções básicas"}
               {p.permite_multiplos_responsaveis ? " · vários responsáveis" : ""}
             </Text>
             {ehAtual ? <Text style={[est.texto, { color: cor.mata, fontWeight: "700", marginTop: 6 }]}>Seu plano atual</Text> :

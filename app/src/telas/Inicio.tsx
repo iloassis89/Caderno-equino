@@ -2,78 +2,101 @@ import React from "react";
 import { Text, View } from "react-native";
 import { supabase } from "../supabase";
 import { carregarPlano, useCarga } from "../dados";
-import { Botao, Cabecalho, Carregando, Cartao, Rotulado, Selo, Tela, Vazio, useNav } from "../ui";
+import { Botao, Cabecalho, Carregando, Cartao, Icone, Rotulado, Selo, Tela, Vazio, useNav } from "../ui";
 import { br, hojeISO, somarDias } from "../datas";
 import { rotuloCategoria } from "../constantes";
 import { cor, est } from "../tema";
 
 export default function Inicio() {
   const nav = useNav();
-  const { dados, carregando, recarregar } = useCarga(async () => {
+  const { dados, carregando } = useCarga(async () => {
     const hoje = hojeISO();
-    const [plano, pendencias, tarefas] = await Promise.all([
+    const [plano, pendencias, tarefas, perfil] = await Promise.all([
       carregarPlano(),
-      supabase.from("records").select("id,data,categoria,descricao,status,decisao_necessaria,proximo_passo,animals(nome)")
-        .in("status", ["a_confirmar", "avaliacao_veterinaria", "planejado"]).order("data", { ascending: false }).limit(20),
+      supabase.from("records").select("id,data,categoria,descricao,status,decisao_necessaria,proximo_passo,animal_id,animals(nome)")
+        .in("status", ["a_confirmar", "avaliacao_veterinaria"]).order("data", { ascending: false }).limit(20),
       supabase.from("tasks").select("id,titulo,proxima_data,animals(nome)").eq("ativo", true)
-        .lte("proxima_data", somarDias(hoje, 7)).order("proxima_data").limit(20),
+        .lte("proxima_data", somarDias(hoje, 3)).order("proxima_data").limit(10),
+      supabase.from("profiles").select("nome").maybeSingle(),
     ]);
-    return { plano, pendencias: pendencias.data ?? [], tarefas: tarefas.data ?? [], totalAnimais: plano?.animais_ativos ?? 0, hoje };
+    return { plano, pendencias: pendencias.data ?? [], tarefas: tarefas.data ?? [], nome: (perfil.data?.nome as string | null) ?? null, hoje };
   });
 
   if (carregando && !dados) return <Tela titulo="Início"><Carregando /></Tela>;
   const d = dados!;
+  const total = d.plano?.animais_ativos ?? 0;
   const vet = d.pendencias.filter((p: any) => p.status === "avaliacao_veterinaria");
   const confirmar = d.pendencias.filter((p: any) => p.status === "a_confirmar");
-  const planejados = d.pendencias.filter((p: any) => p.status === "planejado");
+  const primeiroNome = d.nome?.split(" ")[0];
 
   return (
-    <Tela titulo="Início" subtitulo={`Plano ${d.plano?.nome ?? "Gratuito"} · ${d.totalAnimais} de ${d.plano?.max_animais ?? 1} animal(is)`}
-      acao={<Botao titulo="Atualizar" tipo="leve" onPress={recarregar} style={{ marginTop: 0, paddingVertical: 6 }} />}>
-      {d.totalAnimais === 0 && (
+    <Tela titulo={primeiroNome ? `Olá, ${primeiroNome}` : "Olá"} subtitulo={`Plano ${d.plano?.nome ?? "Gratuito"} · ${total} de ${d.plano?.max_animais ?? 1} animal(is)`}>
+      {total === 0 ? (
         <Cartao style={{ backgroundColor: cor.mataClara }}>
-          <Text style={est.texto}>Comece cadastrando seu primeiro animal.</Text>
-          <Botao titulo="Cadastrar animal" onPress={() => nav.ir("NovoAnimal")} />
+          <Text style={[est.texto, { fontWeight: "700" }]}>Comece cadastrando seu animal.</Text>
+          <Botao titulo="Cadastrar animal" icone="plus-circle" onPress={() => nav.ir("NovoAnimal")} />
         </Cartao>
+      ) : (
+        <Botao titulo="Anotar agora" icone="notebook-edit-outline" onPress={() => nav.aba("Anotar")} style={{ minHeight: 72 }} />
       )}
 
-      <Botao titulo="+ Novo registro" onPress={() => nav.ir("NovoRegistro")} />
+      {vet.length > 0 && (
+        <>
+          <Cabecalho texto={`Chamar veterinário (${vet.length})`} />
+          {vet.map((p: any) => <ItemPendencia key={p.id} p={p} />)}
+        </>
+      )}
 
-      <Cabecalho texto={`Avaliação veterinária (${vet.length})`} />
-      {vet.length === 0 ? <Vazio texto="Nenhum sinal aguardando avaliação." /> : vet.map((p: any) => <ItemPendencia key={p.id} p={p} />)}
-
-      <Cabecalho texto={`A confirmar (${confirmar.length})`} />
-      {confirmar.length === 0 ? <Vazio texto="Nada aguardando confirmação." /> : confirmar.map((p: any) => <ItemPendencia key={p.id} p={p} />)}
-
-      <Cabecalho texto="Tarefas dos próximos 7 dias" />
-      {d.tarefas.length === 0 ? <Vazio texto="Nenhuma tarefa prevista." /> : d.tarefas.map((t: any) => (
+      <Cabecalho texto="Tarefas de hoje e dos próximos dias" />
+      {d.tarefas.length === 0 ? <Vazio texto="Nenhuma tarefa marcada." /> : d.tarefas.map((t: any) => (
         <Cartao key={t.id} onPress={() => nav.ir("Tarefas")}>
-          <View style={est.entre}>
-            <Text style={[est.texto, { flex: 1 }]}>{t.titulo}</Text>
-            <Text style={{ color: t.proxima_data < d.hoje ? cor.barro : cor.tintaSuave, fontWeight: "600" }}>
-              {t.proxima_data < d.hoje ? "Atrasada · " : ""}{br(t.proxima_data)}
-            </Text>
+          <View style={[est.linha, { gap: 10 }]}>
+            <Icone nome="calendar-check" cor={t.proxima_data < d.hoje ? cor.barro : cor.mata} tamanho={28} />
+            <View style={{ flex: 1 }}>
+              <Text style={[est.texto, { fontWeight: "700" }]}>{t.titulo}</Text>
+              <Text style={{ color: t.proxima_data < d.hoje ? cor.barro : cor.tintaSuave, fontSize: 16 }}>
+                {t.proxima_data < d.hoje ? "Atrasada · " : ""}{br(t.proxima_data)}{t.animals?.nome ? ` · ${t.animals.nome}` : ""}
+              </Text>
+            </View>
           </View>
-          {t.animals?.nome ? <Text style={est.textoSuave}>{t.animals.nome}</Text> : null}
         </Cartao>
       ))}
 
-      <Cabecalho texto={`Planejados (${planejados.length})`} />
-      {planejados.length === 0 ? <Vazio texto="Nenhum cuidado planejado." /> : planejados.slice(0, 8).map((p: any) => <ItemPendencia key={p.id} p={p} />)}
+      {confirmar.length > 0 && (
+        <>
+          <Cabecalho texto={`Para confirmar (${confirmar.length})`} />
+          {confirmar.map((p: any) => <ItemPendencia key={p.id} p={p} />)}
+        </>
+      )}
+
+      <Cabecalho texto="Atalhos" />
+      <View style={{ flexDirection: "row", gap: 10 }}>
+        <Atalho icone="package-variant-closed" texto="Estoque" onPress={() => nav.ir("Estoque")} />
+        <Atalho icone="calendar-check" texto="Tarefas" onPress={() => nav.ir("Tarefas")} />
+        <Atalho icone="file-chart-outline" texto="Resumo da semana" onPress={() => nav.ir("Resumo")} />
+      </View>
     </Tela>
   );
 }
 
-function ItemPendencia({ p }: { p: any }) {
+function Atalho({ icone, texto, onPress }: { icone: string; texto: string; onPress: () => void }) {
   return (
-    <Cartao>
-      <View style={est.entre}>
-        <Text style={[est.texto, { fontWeight: "700", flex: 1 }]}>{p.animals?.nome} · {rotuloCategoria(p.categoria)}</Text>
-        <Selo status={p.status} />
-      </View>
+    <Cartao onPress={onPress} style={{ flex: 1, alignItems: "center", paddingVertical: 14, marginBottom: 0 }}>
+      <Icone nome={icone} tamanho={34} cor={cor.mata} />
+      <Text style={[est.textoSuave, { textAlign: "center", marginTop: 4, fontWeight: "700", color: cor.tinta }]}>{texto}</Text>
+    </Cartao>
+  );
+}
+
+function ItemPendencia({ p }: { p: any }) {
+  const nav = useNav();
+  return (
+    <Cartao onPress={() => nav.ir("Ficha", { id: p.animal_id })}>
+      <Text style={[est.texto, { fontWeight: "700" }]}>{p.animals?.nome} · {rotuloCategoria(p.categoria)}</Text>
       <Text style={est.textoSuave}>{br(p.data)}</Text>
-      <Text style={[est.texto, { marginTop: 4 }]}>{p.descricao}</Text>
-      <Rotulado rotulo="Decisão necessária" valor={p.decisao_necessaria} />
+      <View style={{ marginVertical: 6 }}><Selo status={p.status} /></View>
+      <Text style={est.texto}>{p.descricao}</Text>
+      <Rotulado rotulo="O que decidir" valor={p.decisao_necessaria} />
       <Rotulado rotulo="Próximo passo" valor={p.proximo_passo} />
     </Cartao>
   );

@@ -1,6 +1,6 @@
 // Service worker mínimo: guarda a "casca" do app para abrir mais rápido e permitir instalação.
 // Os dados (registros, estoque) sempre vêm do servidor.
-const CACHE = "caderno-equino-v1";
+const CACHE = "ias-horse-v2";
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["./", "./manifest.json", "./icon-192.png", "./icon-512.png"])));

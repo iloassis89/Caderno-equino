@@ -19,14 +19,14 @@ export function Estoque() {
     ]);
     return { plano, saldos: saldos.data ?? [], movs: movs.data ?? [] };
   });
-  if (carregando && !dados) return <Tela titulo="Estoque e compras"><Carregando /></Tela>;
+  if (carregando && !dados) return <Tela titulo="Estoque e compras" voltar><Carregando /></Tela>;
   const { plano, saldos, movs } = dados!;
   const liberado = !!plano?.permite_estoque;
   const totalGasto = saldos.reduce((s: number, i: any) => s + Number(i.custo_realizado_centavos ?? 0), 0);
   const totalPlanejado = saldos.reduce((s: number, i: any) => s + Number(i.custo_planejado_centavos ?? 0), 0);
 
   return (
-    <Tela titulo="Estoque e compras" subtitulo="Ração, silagem, volumoso e suplementos: o que tem, o que foi comprado, o que está planejado e o que foi usado.">
+    <Tela titulo="Estoque e compras" voltar subtitulo="Ração, feno, silagem e sal: quanto tem, quanto comprou e quanto gastou.">
       {!liberado && (
         <Cartao style={{ backgroundColor: cor.couroClaro }}>
           <Text style={est.texto}>O controle de estoque e custos faz parte dos planos pagos, a partir de R$ 9,90 por mês.</Text>
@@ -35,12 +35,12 @@ export function Estoque() {
       )}
       {liberado && (
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <Botao titulo="+ Item" style={{ flex: 1 }} onPress={() => nav.ir("NovoItem")} />
-          <Botao titulo="+ Movimento" tipo="secundario" style={{ flex: 1 }} onPress={() => nav.ir("NovoMovimento")} desativado={saldos.length === 0} />
+          <Botao titulo="Novo item" icone="plus-circle" style={{ flex: 1 }} onPress={() => nav.ir("NovoItem")} />
+          <Botao titulo="Comprei / Usei" icone="swap-vertical" tipo="secundario" style={{ flex: 1 }} onPress={() => nav.ir("NovoMovimento")} desativado={saldos.length === 0} />
         </View>
       )}
 
-      <Cabecalho texto="Saldos" />
+      <Cabecalho texto="Quanto tem" />
       {saldos.length === 0 ? <Vazio texto="Nenhum item cadastrado." /> : saldos.map((i: any) => (
         <Cartao key={i.item_id} onPress={liberado ? () => nav.ir("NovoMovimento", { itemId: i.item_id }) : undefined}>
           <View style={est.entre}>
@@ -59,7 +59,7 @@ export function Estoque() {
         <Text style={[est.texto, { marginTop: 4 }]}>Total gasto: <Text style={{ fontWeight: "700" }}>{reais(totalGasto)}</Text> · Planejado: {reais(totalPlanejado)}</Text>
       )}
 
-      <Cabecalho texto="Últimos movimentos" />
+      <Cabecalho texto="Últimas compras e usos" />
       {movs.length === 0 ? <Vazio texto="Nenhum movimento." /> : movs.map((m: any) => (
         <Cartao key={m.id}>
           <View style={est.entre}>
@@ -90,12 +90,12 @@ export function NovoItem() {
     nav.voltar();
   }
   return (
-    <Tela titulo="Novo item de estoque" voltar>
-      <Campo rotulo="Nome *" value={nome} onChangeText={setNome} placeholder="Ex.: Silagem de milho" />
-      <Escolha rotulo="Tipo *" valor={tipo} aoEscolher={setTipo} opcoes={TIPOS_ESTOQUE} />
-      <Campo rotulo="Unidade *" value={unidade} onChangeText={setUnidade} placeholder="Ex.: saco 20 kg, kg, fardo" />
+    <Tela titulo="Novo item de estoque" voltar subtitulo="Ex.: Silagem de milho, saco de 20 kg.">
+      <Campo rotulo="Nome" value={nome} onChangeText={setNome} placeholder="Ex.: Silagem de milho" />
+      <Escolha rotulo="Tipo" valor={tipo} aoEscolher={setTipo} opcoes={TIPOS_ESTOQUE} colunas={2} />
+      <Campo rotulo="Como conta (unidade)" value={unidade} onChangeText={setUnidade} placeholder="Ex.: saco de 20 kg, kg, fardo" />
       <Aviso texto={erro} tipo="erro" />
-      <Botao titulo="Salvar" onPress={salvar} carregando={salvando} />
+      <Botao titulo="Guardar" icone="check" onPress={salvar} carregando={salvando} />
     </Tela>
   );
 }
@@ -139,10 +139,10 @@ export function NovoMovimento({ itemId }: { itemId?: string }) {
   }
 
   return (
-    <Tela titulo="Movimento de estoque" voltar subtitulo="Compra planejada não altera o saldo; só a compra feita e o consumo alteram.">
-      <Escolha rotulo="Item *" valor={item} aoEscolher={setItem} opcoes={(itens.dados ?? []).map((i: any) => ({ valor: i.id, rotulo: i.nome }))} />
-      <Escolha rotulo="Tipo *" valor={tipo} aoEscolher={setTipo} opcoes={MOVIMENTOS} />
-      <Campo rotulo="Data *" value={data} onChangeText={(t) => setData(mascaraData(t))} keyboardType="number-pad" />
+    <Tela titulo="Comprei / Usei" voltar subtitulo="“Vou comprar” só fica anotado. “Comprei” soma e “Usei” tira do que tem.">
+      <Escolha rotulo="Qual item?" valor={item} aoEscolher={setItem} opcoes={(itens.dados ?? []).map((i: any) => ({ valor: i.id, rotulo: i.nome }))} />
+      <Escolha rotulo="O que foi?" valor={tipo} aoEscolher={setTipo} opcoes={MOVIMENTOS} colunas={2} />
+      <Campo rotulo="Dia" value={data} onChangeText={(t) => setData(mascaraData(t))} keyboardType="number-pad" />
       <Campo rotulo={`Quantidade${unidade ? ` (${unidade})` : ""} *`} value={quantidade} onChangeText={setQuantidade} keyboardType="decimal-pad"
         dica={tipo === "ajuste" ? "Use número negativo para reduzir o saldo." : undefined} />
       {(tipo === "compra_planejada" || tipo === "compra_realizada") && (
@@ -154,7 +154,7 @@ export function NovoMovimento({ itemId }: { itemId?: string }) {
       )}
       <Campo rotulo="Observação" value={obs} onChangeText={setObs} placeholder="Fornecedor, nota fiscal…" />
       <Aviso texto={erro} tipo="erro" />
-      <Botao titulo="Salvar" onPress={salvar} carregando={salvando} />
+      <Botao titulo="Guardar" icone="check" onPress={salvar} carregando={salvando} />
     </Tela>
   );
 }

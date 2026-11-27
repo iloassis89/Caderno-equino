@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { Text, View } from "react-native";
 import { supabase, mensagemErro } from "../supabase";
 import { carregarPlano, useCarga } from "../dados";
-import { Aviso, Botao, Campo, Carregando, Cartao, Escolha, Tela, Vazio, useNav } from "../ui";
+import { Aviso, Botao, Cabecalho, Campo, Carregando, Cartao, Escolha, Icone, Tela, Vazio, useNav } from "../ui";
+import { Anexos, FotoAnimal } from "../anexos";
 import { br, mascaraData, paraISO } from "../datas";
 import { cor, est } from "../tema";
 
@@ -21,22 +22,21 @@ export function Animais() {
   const noLimite = plano ? ativos >= plano.max_animais : false;
 
   return (
-    <Tela titulo="Animais" subtitulo={`${ativos} de ${plano?.max_animais ?? 1} no plano ${plano?.nome ?? "Gratuito"}`}>
-      {noLimite ? (
-        <Aviso texto="Você chegou ao limite do seu plano. Para cadastrar mais animais, mude de plano." />
-      ) : null}
-      <Botao titulo={noLimite ? "Ver planos" : "+ Cadastrar animal"} onPress={() => nav.ir(noLimite ? "Planos" : "NovoAnimal")} />
-      <View style={{ height: 12 }} />
+    <Tela titulo="Animais" subtitulo={`${ativos} de ${plano?.max_animais ?? 1} animal(is) no seu plano`}>
+      {noLimite && <Aviso texto="Seu plano está completo. Para cadastrar mais animais, mude de plano." />}
+      <Botao titulo={noLimite ? "Ver planos" : "Cadastrar animal"} icone={noLimite ? "star-outline" : "plus-circle"}
+        onPress={() => nav.ir(noLimite ? "Planos" : "NovoAnimal")} />
+      <View style={{ height: 14 }} />
       {animais.length === 0 ? <Vazio texto="Nenhum animal cadastrado ainda." /> : animais.map((a: any) => (
         <Cartao key={a.id} onPress={() => nav.ir("Ficha", { id: a.id })} style={!a.ativo ? { opacity: 0.6 } : undefined}>
-          <View style={est.entre}>
-            <Text style={[est.texto, { fontSize: 18, fontWeight: "700" }]}>{a.nome}</Text>
-            {!a.ativo && <Text style={est.textoSuave}>Inativo</Text>}
+          <View style={[est.linha, { gap: 14 }]}>
+            <FotoAnimal animalId={a.id} tamanho={72} />
+            <View style={{ flex: 1 }}>
+              <Text style={[est.texto, { fontSize: 22, fontWeight: "700" }]}>{a.nome}</Text>
+              <Text style={est.textoSuave}>{a.ativo ? "Toque para abrir a ficha" : "Inativo"}</Text>
+            </View>
+            <Icone nome="chevron-right" tamanho={30} cor={cor.tintaSuave} />
           </View>
-          <Text style={est.textoSuave}>
-            {[a.raca, a.pelagem, a.sexo === "femea" ? "Fêmea" : a.sexo === "macho" ? "Macho" : a.sexo === "macho_castrado" ? "Macho castrado" : null]
-              .filter(Boolean).join(" · ") || "Toque para ver a ficha"}
-          </Text>
         </Cartao>
       ))}
     </Tela>
@@ -53,46 +53,61 @@ export function NovoAnimal({ animal }: { animal?: any }) {
   const [obs, setObs] = useState(animal?.observacoes ?? "");
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+  const [novoId, setNovoId] = useState<string | null>(null);
 
   async function salvar() {
     setErro(null);
-    if (!nome.trim()) return setErro("Informe o nome do animal.");
+    if (!nome.trim()) return setErro("Escreva o nome do animal.");
     const nascISO = nasc ? paraISO(nasc) : null;
-    if (nasc && !nascISO) return setErro("Data de nascimento inválida. Use DD/MM/AAAA, ou deixe em branco.");
+    if (nasc && !nascISO) return setErro("Data de nascimento inválida. Use dia/mês/ano, ou deixe em branco.");
     setSalvando(true);
     const linha = {
       nome: nome.trim(), sexo, raca: raca.trim() || null, pelagem: pelagem.trim() || null,
       data_nascimento: nascISO, observacoes: obs.trim() || null,
     };
-    const { error } = animal
-      ? await supabase.from("animals").update(linha).eq("id", animal.id)
-      : await supabase.from("animals").insert(linha);
+    const res = animal
+      ? await supabase.from("animals").update(linha).eq("id", animal.id).select("id").single()
+      : await supabase.from("animals").insert(linha).select("id").single();
     setSalvando(false);
-    if (error) return setErro(mensagemErro(error));
-    nav.voltar();
+    if (res.error) return setErro(mensagemErro(res.error));
+    if (animal) return nav.voltar();
+    setNovoId(res.data.id);
+  }
+
+  // Logo depois de cadastrar: foto e documento de registro
+  if (novoId) {
+    return (
+      <Tela titulo={`${nome.trim()} cadastrado`} subtitulo="Agora, se quiser, guarde a foto e o documento de registro. Pode fazer isso depois também.">
+        <Cabecalho texto="Foto do animal" />
+        <Anexos animalId={novoId} tipo="foto_animal" vazio="Sem foto ainda." />
+        <Cabecalho texto="Documento de registro" />
+        <Anexos animalId={novoId} tipo="registro" vazio="Nenhum documento ainda." />
+        <Botao titulo="Concluir" icone="check" onPress={nav.voltar} style={{ marginTop: 24 }} />
+      </Tela>
+    );
   }
 
   return (
-    <Tela titulo={animal ? "Editar animal" : "Novo animal"} voltar subtitulo="Preencha só o que você sabe. Campos vazios ficam vazios.">
-      <Campo rotulo="Nome *" value={nome} onChangeText={setNome} />
+    <Tela titulo={animal ? "Editar animal" : "Novo animal"} voltar subtitulo="Só o nome é obrigatório. O resto, preencha se souber.">
+      <Campo rotulo="Nome do animal" value={nome} onChangeText={setNome} placeholder="Ex.: Sabrina" />
       <Escolha rotulo="Sexo" permitirVazio valor={sexo} aoEscolher={setSexo}
-        opcoes={[{ valor: "femea", rotulo: "Fêmea" }, { valor: "macho", rotulo: "Macho" }, { valor: "macho_castrado", rotulo: "Macho castrado" }]} />
-      <Campo rotulo="Raça" value={raca} onChangeText={setRaca} />
-      <Campo rotulo="Pelagem" value={pelagem} onChangeText={setPelagem} />
-      <Campo rotulo="Nascimento" value={nasc} onChangeText={(t) => setNasc(mascaraData(t))} placeholder="DD/MM/AAAA" keyboardType="number-pad" />
+        opcoes={[{ valor: "femea", rotulo: "Fêmea" }, { valor: "macho", rotulo: "Macho" }, { valor: "macho_castrado", rotulo: "Castrado" }]} />
+      <Campo rotulo="Raça" value={raca} onChangeText={setRaca} placeholder="Ex.: Mangalarga" />
+      <Campo rotulo="Pelagem (cor)" value={pelagem} onChangeText={setPelagem} placeholder="Ex.: Tordilho" />
+      <Campo rotulo="Nascimento" value={nasc} onChangeText={(t) => setNasc(mascaraData(t))} placeholder="dia/mês/ano" keyboardType="number-pad" />
       <Campo rotulo="Observações" value={obs} onChangeText={setObs} multiline />
       <Aviso texto={erro} tipo="erro" />
       {erro?.includes("Limite do plano") && <Botao titulo="Ver planos" tipo="secundario" onPress={() => nav.ir("Planos")} />}
-      <Botao titulo="Salvar" onPress={salvar} carregando={salvando} />
+      <Botao titulo="Guardar" icone="check" onPress={salvar} carregando={salvando} />
       {animal && (
-        <Botao titulo={animal.ativo ? "Marcar como inativo (vendido, emprestado…)" : "Reativar animal"} tipo="leve"
+        <Botao titulo={animal.ativo ? "Não tenho mais este animal" : "Voltar a usar este animal"} tipo="leve"
           onPress={async () => {
             const { error } = await supabase.from("animals").update({ ativo: !animal.ativo }).eq("id", animal.id);
             if (error) return setErro(mensagemErro(error));
             nav.voltar();
           }} />
       )}
-      <Text style={[est.textoSuave, { marginTop: 10, color: cor.tintaSuave }]}>Animal inativo não conta no limite do plano e mantém o histórico.</Text>
+      {animal && <Text style={[est.textoSuave, { marginTop: 10 }]}>Animal que saiu (vendido, emprestado) não conta no plano e o histórico fica guardado.</Text>}
     </Tela>
   );
 }

@@ -2,12 +2,13 @@ import React, { useState } from "react";
 import { Platform, Share, Text, View } from "react-native";
 import { supabase } from "../supabase";
 import { useCarga } from "../dados";
-import { Botao, Cabecalho, Carregando, Cartao, Tela, Vazio } from "../ui";
+import { Bloqueado, Botao, Cabecalho, Carregando, Cartao, Tela, Vazio, usePlano } from "../ui";
 import { MOVIMENTOS, STATUS, reais, rotuloCategoria, rotuloDe } from "../constantes";
 import { br, hojeISO, semanaDe, somarDias } from "../datas";
 import { est } from "../tema";
 
 export default function Resumo() {
+  const { pago } = usePlano();
   const [ref, setRef] = useState(hojeISO());
   const { inicio, fim } = semanaDe(ref);
   const { dados, carregando } = useCarga(async () => {
@@ -21,7 +22,7 @@ export default function Resumo() {
 
   function textoResumo() {
     if (!dados) return "";
-    const l: string[] = [`CADERNO EQUINO — Resumo da semana ${br(inicio)} a ${br(fim)}`, ""];
+    const l: string[] = [`IAS HORSE — Resumo da semana ${br(inicio)} a ${br(fim)}`, ""];
     for (const s of STATUS) {
       const itens = dados.registros.filter((r: any) => r.status === s.valor);
       l.push(`${s.rotulo.toUpperCase()} (${itens.length})`);
@@ -49,8 +50,16 @@ export default function Resumo() {
 
   const gasto = (dados?.movs ?? []).filter((m: any) => m.tipo === "compra_realizada").reduce((s: number, m: any) => s + Number(m.custo_total_centavos ?? 0), 0);
 
+  if (!pago) {
+    return (
+      <Tela titulo="Resumo da semana" voltar>
+        <Bloqueado titulo="Resumo da semana" texto="Veja tudo o que foi feito, o que falta e quanto foi gasto na semana, pronto para imprimir ou mandar. Disponível a partir de R$ 9,90 por mês." />
+      </Tela>
+    );
+  }
+
   return (
-    <Tela titulo="Resumo semanal" voltar subtitulo={`${br(inicio)} a ${br(fim)}`}>
+    <Tela titulo="Resumo da semana" voltar subtitulo={`${br(inicio)} a ${br(fim)}`}>
       <View style={{ flexDirection: "row", gap: 8 }}>
         <Botao titulo="‹ Anterior" tipo="leve" style={{ flex: 1 }} onPress={() => setRef(somarDias(inicio, -7))} />
         <Botao titulo="Próxima ›" tipo="leve" style={{ flex: 1 }} onPress={() => setRef(somarDias(inicio, 7))} />

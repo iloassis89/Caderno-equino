@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Caderno Equino",
-    "slug": "caderno-equino",
-    "scheme": "cadernoequino",
+    "name": "IAS Horse",
+    "slug": "ias-horse",
+    "scheme": "iashorse",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,13 +14,15 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.cadernoequino",
+      "bundleIdentifier": "com.iashorse.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "O IAS Horse usa a câmera para fotografar o animal e os documentos dele.",
+        "NSPhotoLibraryUsageDescription": "O IAS Horse usa a galeria para escolher fotos do animal e dos documentos."
       }
     },
     "android": {
-      "package": "app.cadernoequino",
+      "package": "com.iashorse.app",
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#3E5B3A",
@@ -32,8 +34,8 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "name": "Caderno Equino",
-      "shortName": "Caderno Equino",
+      "name": "IAS Horse",
+      "shortName": "IAS Horse",
       "lang": "pt-BR",
       "themeColor": "#3E5B3A",
       "backgroundColor": "#F3ECDC",
@@ -41,7 +43,16 @@
       "output": "single"
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-sharing",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "O IAS Horse usa a câmera para fotografar o animal e os documentos dele.",
+          "photosPermission": "O IAS Horse usa a galeria para escolher fotos do animal e dos documentos."
+        }
+      ]
     ],
     "experiments": {
       "baseUrl": "/Caderno-equino"

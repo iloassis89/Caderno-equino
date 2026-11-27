@@ -1,9 +1,9 @@
 // Devolve o usuário ao app depois do Stripe (Checkout ou portal).
 // Só redireciona para destinos permitidos, para evitar uso indevido do link.
-const PADRAO = "cadernoequino://assinatura";
+const PADRAO = "iashorse://assinatura";
 
 function permitido(destino: string) {
-  if (destino.startsWith("cadernoequino://")) return true;
+  if (destino.startsWith("iashorse://") || destino.startsWith("cadernoequino://")) return true;
   if (destino.startsWith("exp://")) return true; // testes com Expo Go
   try {
     const u = new URL(destino);

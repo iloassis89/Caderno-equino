@@ -1,7 +1,7 @@
 {
-  "name": "Caderno Equino",
-  "short_name": "Caderno Equino",
-  "description": "Registro e acompanhamento do manejo de cavalos: alimentação, cascos, saúde, treino, estoque e tarefas.",
+  "name": "IAS Horse",
+  "short_name": "IAS Horse",
+  "description": "Caderno de manejo do cavalo: anotações, documentos, alimentação, estoque e relatório para o veterinário.",
   "lang": "pt-BR",
   "start_url": "/Caderno-equino/",
   "scope": "/Caderno-equino/",
