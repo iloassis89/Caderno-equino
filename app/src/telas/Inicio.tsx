@@ -19,7 +19,7 @@ export default function Inicio() {
       supabase.from("tasks").select("id,titulo,proxima_data,animals(nome)").eq("ativo", true)
         .lte("proxima_data", somarDias(hoje, 3)).order("proxima_data").limit(10),
       supabase.from("profiles").select("nome").maybeSingle(),
-      supabase.from("suporte_conversas").select("id").eq("nao_lida_usuario", true).order("updated_at", { ascending: false }).limit(5),
+      supabase.auth.getUser().then(({ data: u }) => supabase.from("suporte_conversas").select("id").eq("user_id", u.user?.id ?? "").eq("nao_lida_usuario", true).order("updated_at", { ascending: false }).limit(5)),
     ]);
     return { suporte: (suporte.data ?? []) as { id: string }[], plano, pendencias: ok(pendencias) ?? [], tarefas: ok(tarefas) ?? [], nome: (perfil.data?.nome as string | null) ?? null, hoje };
   });

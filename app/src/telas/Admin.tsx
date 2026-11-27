@@ -10,6 +10,8 @@ import { cor, est, tam } from "../tema";
 
 export function Admin() {
   const nav = useNav();
+  const cont = useCarga(async () => (ok(await supabase.rpc("contadores_admin")) as any[])?.[0] ?? null);
+  const numero: Record<string, number> = { AdminSuporte: cont.dados?.suporte ?? 0, AdminPedidos: cont.dados?.pedidos ?? 0, AdminPedidosAnuncio: cont.dados?.anuncios ?? 0 };
   const itens = [
     { t: "Suporte", d: "Responder os clientes", i: "lifebuoy", r: "AdminSuporte" },
     { t: "Pedidos para autorizar", d: "Parceiros (afiliados) e compras/vendas", i: "clipboard-check-outline", r: "AdminPedidos" },
@@ -29,6 +31,11 @@ export function Admin() {
               <Text style={[est.texto, { fontWeight: "700" }]}>{i.t}</Text>
               <Text style={est.textoSuave}>{i.d}</Text>
             </View>
+            {numero[i.r] > 0 && (
+              <View style={{ minWidth: 30, height: 30, borderRadius: 15, backgroundColor: cor.couro, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 }}>
+                <Text style={{ color: cor.branco, fontWeight: "700", fontSize: 16 }}>{numero[i.r]}</Text>
+              </View>
+            )}
             <Icone nome="chevron-right" tamanho={28} cor={cor.tintaSuave} />
           </View>
         </Cartao>
@@ -105,8 +112,12 @@ async function enviarImagemAnuncio(arq: { uri: string; nome: string; mime: strin
   return supabase.storage.from("anuncios").getPublicUrl(caminho).data.publicUrl;
 }
 
-export function AdminAnuncios() {
-  const [form, setForm] = useState<any | null>(null);
+export function AdminAnuncios({ pedido }: { pedido?: any }) {
+  // vindo de "Vendas de anúncio": já abre o formulário preenchido e ligado ao pedido pago
+  const [form, setForm] = useState<any | null>(() => pedido ? {
+    anunciante: pedido.anunciante, titulo: "", texto: "", link_url: "", publico: "todos", imagem_url: null, pedido_id: pedido.id,
+    fim: br(new Date(Date.now() + (pedido.periodo === "mes" ? 30 : 7) * pedido.quantidade * 86400000 - 86400000).toISOString().slice(0, 10)),
+  } : null);
   const [msg, setMsg] = useState<{ t: string; tipo: "ok" | "erro" } | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const { dados, carregando, erro, recarregar } = useCarga(async () => ok(await supabase.from("anuncios").select("*").order("created_at", { ascending: false })) ?? []);
@@ -127,6 +138,7 @@ export function AdminAnuncios() {
     const linha = {
       anunciante: form.anunciante.trim(), titulo: form.titulo.trim(), texto: form.texto.trim() || null,
       link_url: link || null, publico: form.publico, fim, imagem_url: form.imagem_url,
+      ...(form.pedido_id ? { pedido_id: form.pedido_id } : {}),
     };
     const res = form.id ? await supabase.from("anuncios").update(linha).eq("id", form.id) : await supabase.from("anuncios").insert(linha);
     setOcupado(false);

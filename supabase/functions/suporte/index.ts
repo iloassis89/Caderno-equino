@@ -65,8 +65,13 @@ async function enviarEmail(para: string, assunto: string, html: string) {
   }
 }
 
+const LIMITE_EMAILS = Number(Deno.env.get("SUPORTE_EMAILS_PESSOA") ?? "8");
+
 async function avisarDono(conversa: any, titulo: string, detalhes: string, emailUsuario?: string | null) {
   await admin.from("suporte_conversas").update({ nao_lida_admin: true }).eq("id", conversa.id);
+  // limite de e-mails por pessoa por dia (o aviso continua na Administração)
+  const { data: pode } = await admin.rpc("usar_email_suporte", { p_user: conversa.user_id, p_limite: LIMITE_EMAILS });
+  if (!pode) return;
   const para = await emailAvisos();
   if (!para) return;
   const { data: msgs } = await admin.from("suporte_mensagens").select("autor,texto,created_at")
@@ -140,48 +145,45 @@ const FERRAMENTAS = [
   },
 ];
 
+const COM_EFEITO = new Set(["reservar_anuncio", "registrar_problema", "registrar_sugestao", "pedir_autorizacao", "chamar_atendente"]);
+const txt = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+
 async function executarFerramenta(nome: string, entrada: any, conversa: any, user: any): Promise<string> {
   if (nome === "consultar_vagas_anuncio") {
+    await admin.rpc("arrumar_vagas_anuncio");
     const { data } = await admin.rpc("situacao_vagas_anuncio");
     const v = data?.[0];
     if (!v) return "Não consegui consultar as vagas agora.";
     return `Vagas de anúncio ao mesmo tempo: ${v.vagas}. Livres agora: ${v.livres}. Pessoas na fila de espera: ${v.na_fila}. Preço: ${reais(v.preco_semana)} por semana ou ${reais(v.preco_mes)} por mês. O anúncio aparece no Início e nas Dicas do app, com imagem, texto e link (site ou WhatsApp). O link de pagamento é enviado por e-mail depois da reserva.`;
   }
   if (nome === "reservar_anuncio") {
-    const { data } = await admin.rpc("situacao_vagas_anuncio");
-    const v = data?.[0];
-    const unit = entrada.periodo === "mes" ? v?.preco_mes : v?.preco_semana;
-    const qtd = Math.min(Math.max(Number(entrada.quantidade) || 1, 1), 12);
-    const status = (v?.livres ?? 0) > 0 ? "reservado" : "fila";
-    const { error } = await admin.from("anuncio_pedidos").insert({
-      conversa_id: conversa.id, user_id: user.id, anunciante: String(entrada.anunciante).slice(0, 120),
-      responsavel: String(entrada.responsavel).slice(0, 120), documento: entrada.documento ? String(entrada.documento).slice(0, 30) : null,
-      telefone: String(entrada.telefone ?? "").slice(0, 30), email: String(entrada.email).slice(0, 120), cidade: entrada.cidade ? String(entrada.cidade).slice(0, 80) : null,
-      periodo: entrada.periodo === "mes" ? "mes" : "semana", quantidade: qtd, valor_centavos: (unit ?? 0) * qtd, status,
+    const periodo = entrada.periodo === "mes" ? "mes" : entrada.periodo === "semana" ? "semana" : "";
+    const { data, error } = await admin.rpc("reservar_vaga_anuncio", {
+      p_user: user.id, p_conversa: conversa.id, p_anunciante: txt(entrada.anunciante, 120), p_responsavel: txt(entrada.responsavel, 120),
+      p_documento: txt(entrada.documento, 30), p_telefone: txt(entrada.telefone, 30), p_email: txt(entrada.email, 120),
+      p_cidade: txt(entrada.cidade, 80), p_periodo: periodo, p_quantidade: Math.trunc(Number(entrada.quantidade)) || 0,
     });
-    if (error) return `Não consegui registrar: ${error.message}`;
-    let posicao = 0;
-    if (status === "fila") {
-      const { count } = await admin.from("anuncio_pedidos").select("id", { count: "exact", head: true }).eq("status", "fila");
-      posicao = count ?? 1;
-    }
-    await admin.from("suporte_conversas").update({ status: "aguardando_atendente", prazo_resposta: new Date(Date.now() + 48 * 3600 * 1000).toISOString(), resumo: `Anúncio: ${entrada.anunciante}` }).eq("id", conversa.id);
-    await avisarDono(conversa, status === "reservado" ? "Nova reserva de anúncio" : "Novo anunciante na fila de espera",
+    const r = data?.[0];
+    if (error || !r) { console.error("reserva", error); return "ERRO: não consegui registrar agora. Ofereça chamar o atendente."; }
+    if (r.erro) return `ERRO: ${r.erro}`;
+    const qtd = Math.trunc(Number(entrada.quantidade));
+    await admin.from("suporte_conversas").update({ status: "aguardando_atendente", prazo_resposta: new Date(Date.now() + 48 * 3600 * 1000).toISOString(), resumo: `Anúncio: ${txt(entrada.anunciante, 100)}` }).eq("id", conversa.id);
+    await avisarDono(conversa, r.status === "reservado" ? "Nova reserva de anúncio" : "Novo anunciante na fila de espera",
       `<p><b>Anunciante:</b> ${esc(entrada.anunciante)}<br><b>Responsável:</b> ${esc(entrada.responsavel)} ${entrada.documento ? `(${esc(entrada.documento)})` : ""}<br>
       <b>Telefone:</b> ${esc(entrada.telefone)}<br><b>E-mail:</b> ${esc(entrada.email)}<br><b>Cidade:</b> ${esc(entrada.cidade ?? "")}<br>
-      <b>Período:</b> ${qtd} ${entrada.periodo === "mes" ? "mês(es)" : "semana(s)"} — <b>${reais((unit ?? 0) * qtd)}</b><br>
-      <b>Situação:</b> ${status === "reservado" ? "vaga reservada — envie o link de pagamento" : `fila de espera, posição ${posicao}`}</p>`, user.email);
-    return status === "reservado"
-      ? `Vaga reservada. Total: ${reais((unit ?? 0) * qtd)}. O dono do app vai enviar o link de pagamento para ${entrada.email}. Depois do pagamento, ele pede a imagem e o texto do anúncio.`
-      : `Estava lotado, então a pessoa entrou na fila de espera na posição ${posicao}. Quando abrir uma vaga, ela é avisada aqui no chat e recebe o link de pagamento por e-mail.`;
+      <b>Período:</b> ${qtd} ${periodo === "mes" ? "mês(es)" : "semana(s)"} — <b>${reais(r.valor_centavos)}</b><br>
+      <b>Situação:</b> ${r.status === "reservado" ? "vaga reservada — envie o link de pagamento (a reserva vence em 7 dias)" : `fila de espera, posição ${r.posicao}`}</p>`, user.email);
+    return r.status === "reservado"
+      ? `Vaga reservada. Total: ${reais(r.valor_centavos)}. O dono do app vai enviar o link de pagamento para ${txt(entrada.email, 120)} (confirme esse e-mail com a pessoa). A reserva vale por 7 dias. Depois do pagamento, ele pede a imagem e o texto do anúncio.`
+      : `Estava lotado, então a pessoa entrou na fila de espera na posição ${r.posicao}. Quando abrir uma vaga, ela é avisada aqui no chat e recebe o link de pagamento no e-mail ${txt(entrada.email, 120)}.`;
   }
   if (nome === "registrar_problema") {
-    await admin.from("suporte_conversas").update({ status: "aguardando_atendente", prazo_resposta: new Date(Date.now() + 48 * 3600 * 1000).toISOString(), resumo: String(entrada.descricao).slice(0, 500) }).eq("id", conversa.id);
+    await admin.from("suporte_conversas").update({ status: "aguardando_atendente", prazo_resposta: new Date(Date.now() + 48 * 3600 * 1000).toISOString(), resumo: txt(entrada.descricao, 500) }).eq("id", conversa.id);
     await avisarDono(conversa, "Problema no app", `<p>${esc(entrada.descricao)}</p><p><b>Tela:</b> ${esc(entrada.tela ?? "")} · <b>Aparelho:</b> ${esc(entrada.aparelho ?? "")}</p>`, user.email);
     return `Problema registrado com o protocolo ${conversa.protocolo}. O dono responde aqui no chat em até 48 horas.`;
   }
   if (nome === "registrar_sugestao") {
-    await admin.from("suporte_conversas").update({ status: "aguardando_atendente", prazo_resposta: new Date(Date.now() + 48 * 3600 * 1000).toISOString(), resumo: String(entrada.sugestao).slice(0, 500) }).eq("id", conversa.id);
+    await admin.from("suporte_conversas").update({ status: "aguardando_atendente", prazo_resposta: new Date(Date.now() + 48 * 3600 * 1000).toISOString(), resumo: txt(entrada.sugestao, 500) }).eq("id", conversa.id);
     await avisarDono(conversa, "Nova sugestão", `<p>${esc(entrada.sugestao)}</p>`, user.email);
     return "Sugestão registrada e enviada ao dono do app.";
   }
@@ -189,15 +191,15 @@ async function executarFerramenta(nome: string, entrada: any, conversa: any, use
     const tipo = entrada.tipo === "venda" ? "venda" : "afiliado";
     await admin.from("pedidos_autorizacao").insert({
       conversa_id: conversa.id, user_id: user.id, tipo,
-      dados: { nome: entrada.nome, contato: entrada.contato, detalhes: entrada.detalhes, email_conta: user.email },
+      dados: { nome: txt(entrada.nome, 120), contato: txt(entrada.contato, 120), detalhes: txt(entrada.detalhes, 1500), email_conta: user.email },
     });
-    await admin.from("suporte_conversas").update({ status: "aguardando_atendente", prazo_resposta: new Date(Date.now() + 48 * 3600 * 1000).toISOString(), resumo: `${tipo}: ${entrada.nome}` }).eq("id", conversa.id);
+    await admin.from("suporte_conversas").update({ status: "aguardando_atendente", prazo_resposta: new Date(Date.now() + 48 * 3600 * 1000).toISOString(), resumo: `${tipo}: ${txt(entrada.nome, 100)}` }).eq("id", conversa.id);
     await avisarDono(conversa, tipo === "afiliado" ? "Pedido de parceria (afiliado)" : "Pedido de compra/venda",
       `<p><b>Nome:</b> ${esc(entrada.nome)}<br><b>Contato:</b> ${esc(entrada.contato)}</p><p>${esc(entrada.detalhes)}</p><p>Aprove ou recuse em Administração → Pedidos para autorizar.</p>`, user.email);
     return "Pedido registrado. Ele depende da autorização do dono do app; a resposta chega aqui no chat em até 48 horas.";
   }
   if (nome === "chamar_atendente") {
-    await chamarAtendente(conversa, String(entrada.resumo ?? ""), user.email);
+    await chamarAtendente(conversa, txt(entrada.resumo, 500) || "A pessoa precisa de atendimento.", user.email);
     return "Conversa enviada ao atendente. Resposta em até 48 horas neste chat.";
   }
   return "Ferramenta desconhecida.";
@@ -215,45 +217,61 @@ Seu papel: fazer a triagem e resolver o básico. Use as ferramentas:
 - Sugestões: agradeça e use registrar_sugestao.
 - Parceria (afiliado) ou compra/venda: você NÃO aprova nada. Colete nome, contato e detalhes e use pedir_autorizacao.
 - Se não conseguir resolver, ou se a pessoa pedir para falar com uma pessoa, use chamar_atendente.
+- Se a conversa já teve resposta do atendente e a pessoa só agradece ou se despede, responda com gentileza e pronto. Se ela trouxer algo que só o atendente resolve (pagamento, pedido em andamento, reclamação), use chamar_atendente.
+- Se uma ferramenta responder com ERRO, explique em palavras simples e peça o dado que faltou.
+- Cada mensagem da pessoa permite só UM registro (reserva, problema, sugestão, pedido ou atendente). Uma pessoa pode ter só um pedido de anúncio em andamento.
 Nunca prometa descontos, prazos ou aprovações que não estejam aqui. Não invente preços: use a ferramenta.`;
 }
 
-async function responderComIA(conversa: any, user: any): Promise<string> {
-  const { data: msgs } = await admin.from("suporte_mensagens").select("autor,texto").eq("conversa_id", conversa.id).order("id").limit(40);
+// Devolve o texto da IA e se já houve um registro (para não repetir avisos)
+async function responderComIA(conversa: any, user: any): Promise<{ texto: string; registrou: boolean }> {
+  const { data: ultimas } = await admin.from("suporte_mensagens").select("autor,texto").eq("conversa_id", conversa.id).order("id", { ascending: false }).limit(40);
   const historico: any[] = [];
-  for (const m of msgs ?? []) {
+  for (const m of (ultimas ?? []).reverse()) {
     const role = m.autor === "usuario" ? "user" : "assistant";
     const texto = m.autor === "sistema" ? `[Aviso do sistema] ${m.texto}` : m.autor === "atendente" ? `[Resposta do atendente] ${m.texto}` : m.texto;
     const ultimo = historico[historico.length - 1];
     if (ultimo && ultimo.role === role) ultimo.content += `\n${texto}`; else historico.push({ role, content: texto });
   }
   while (historico.length && historico[0].role !== "user") historico.shift();
+  if (!historico.length || historico[historico.length - 1].role !== "user") throw new Error("histórico sem mensagem da pessoa");
 
-  for (let volta = 0; volta < 5; volta++) {
+  let registrou = false;
+  const VOLTAS = 4;
+  for (let volta = 0; volta < VOLTAS; volta++) {
+    const ultima = volta === VOLTAS - 1;
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": CHAVE_IA, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({ model: MODELO, max_tokens: 700, system: sistema(conversa.assunto), tools: FERRAMENTAS, messages: historico }),
+      body: JSON.stringify({ model: MODELO, max_tokens: 700, system: sistema(conversa.assunto), messages: historico, ...(ultima ? {} : { tools: FERRAMENTAS }) }),
     });
-    if (!r.ok) throw new Error(`API ${r.status}: ${await r.text()}`);
+    if (!r.ok) throw Object.assign(new Error(`API ${r.status}: ${await r.text()}`), { registrou });
     const dados = await r.json();
     const blocos = dados.content ?? [];
     const usos = blocos.filter((b: any) => b.type === "tool_use");
     if (dados.stop_reason !== "tool_use" || usos.length === 0) {
-      return blocos.filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n")
+      const texto = blocos.filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n")
         .replace(/\*\*(.+?)\*\*/g, "$1").replace(/^#{1,6}\s*/gm, "").replace(/\*/g, "").trim();
+      return { texto, registrou };
     }
     historico.push({ role: "assistant", content: blocos });
     const resultados = [];
     for (const u of usos) {
-      const saida = await executarFerramenta(u.name, u.input ?? {}, conversa, user);
-      resultados.push({ type: "tool_result", tool_use_id: u.id, content: saida });
+      let saida: string; let erro = false;
+      if (!FERRAMENTAS.some((f) => f.name === u.name)) { saida = "Ferramenta desconhecida."; erro = true; }
+      else if (COM_EFEITO.has(u.name) && registrou) { saida = "Já foi feito um registro nesta mensagem. Não repita; confirme o que já foi feito."; erro = true; }
+      else {
+        saida = await executarFerramenta(u.name, u.input ?? {}, conversa, user);
+        if (COM_EFEITO.has(u.name) && !saida.startsWith("ERRO")) registrou = true;
+        erro = saida.startsWith("ERRO");
+      }
+      resultados.push({ type: "tool_result", tool_use_id: u.id, content: saida, ...(erro ? { is_error: true } : {}) });
     }
     historico.push({ role: "user", content: resultados });
     const { data: atual } = await admin.from("suporte_conversas").select("*").eq("id", conversa.id).single();
     if (atual) conversa = atual;
   }
-  return "Vou passar sua conversa para o atendimento.";
+  return { texto: "", registrou };
 }
 
 Deno.serve(async (req) => {
@@ -270,10 +288,12 @@ Deno.serve(async (req) => {
       const desde = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
       const { count } = await admin.from("suporte_conversas").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("created_at", desde);
       if ((count ?? 0) >= 10) return json({ erro: "Você já abriu muitos atendimentos hoje. Continue em um dos atendimentos abertos." }, 429);
+      const primeira = typeof corpo.texto === "string" ? corpo.texto.trim() : "";
+      if (!primeira) return json({ erro: "Escreva sua mensagem." }, 400);
       const { data: conv, error } = await admin.from("suporte_conversas").insert({ user_id: user.id, assunto }).select("*").single();
       if (error) throw error;
       await mensagem(conv.id, "ia", BOAS_VINDAS[assunto]);
-      return json({ conversa: conv });
+      corpo.conversa_id = conv.id;
     }
 
     const { data: conversa } = await admin.from("suporte_conversas").select("*").eq("id", corpo.conversa_id ?? "").maybeSingle();
@@ -282,42 +302,53 @@ Deno.serve(async (req) => {
     // Pedir atendente diretamente
     if (corpo.acao === "atendente") {
       if (conversa.status !== "aguardando_atendente") await chamarAtendente(conversa, conversa.resumo ?? "A pessoa pediu para falar com o atendente.", user.email);
-      return json({ ok: true });
+      return json({ ok: true, conversa_id: conversa.id });
     }
 
     // Nova mensagem
     const texto = typeof corpo.texto === "string" ? corpo.texto.trim().slice(0, 2000) : "";
     if (!texto) return json({ erro: "Escreva sua mensagem." }, 400);
-    if (conversa.status === "encerrada" || conversa.status === "respondida") {
-      await admin.from("suporte_conversas").update({ status: "aguardando_atendente", prazo_resposta: new Date(Date.now() + 48 * 3600 * 1000).toISOString() }).eq("id", conversa.id);
+    // Depois da resposta do atendente, a IA volta a atender (agradecimentos não reabrem o prazo de 48h)
+    if ((conversa.status === "encerrada" || conversa.status === "respondida") && CHAVE_IA) {
+      await admin.from("suporte_conversas").update({ status: "ia" }).eq("id", conversa.id);
+      conversa.status = "ia";
     }
     await mensagem(conversa.id, "usuario", texto);
 
+    const ok = { ok: true, conversa_id: conversa.id };
     // Já está com o atendente (ou sem IA configurada): só guarda e avisa o dono
     if (conversa.status !== "ia" || !CHAVE_IA) {
-      if (conversa.status === "ia") {
+      if (conversa.status === "ia" || conversa.status === "respondida" || conversa.status === "encerrada") {
         await chamarAtendente(conversa, texto.slice(0, 300), user.email);
       } else if (!conversa.nao_lida_admin) {
         // um e-mail por vez: só avisa de novo depois que o dono abrir a conversa
         await avisarDono(conversa, "Nova mensagem no suporte", `<p>${esc(texto)}</p>`, user.email);
       }
-      return json({ ok: true });
+      return json(ok);
     }
 
     const { data: liberado } = await admin.rpc("usar_suporte_ia", { p_user: user.id, p_limite_pessoa: LIMITE_PESSOA, p_limite_global: LIMITE_GLOBAL });
     if (!liberado) {
       await chamarAtendente(conversa, texto.slice(0, 300), user.email);
-      return json({ ok: true });
+      return json(ok);
     }
+    let resposta = "", registrou = false, falhou = false;
     try {
-      const resposta = await responderComIA(conversa, user);
-      if (resposta) await mensagem(conversa.id, "ia", resposta);
-    } catch (e) {
+      ({ texto: resposta, registrou } = await responderComIA(conversa, user));
+    } catch (e: any) {
       console.error("suporte ia", e);
-      await admin.rpc("devolver_suporte_ia", { p_user: user.id });
-      await chamarAtendente(conversa, texto.slice(0, 300), user.email);
+      falhou = true;
+      registrou = !!e?.registrou;
+      if (!registrou) await admin.rpc("devolver_suporte_ia", { p_user: user.id });
     }
-    return json({ ok: true });
+    if (resposta) await mensagem(conversa.id, "ia", resposta);
+    if (!resposta || falhou) {
+      // sem resposta da IA: passa para o atendente, a menos que já tenha sido registrado algo
+      const { data: atual } = await admin.from("suporte_conversas").select("*").eq("id", conversa.id).single();
+      if (atual?.status === "ia") await chamarAtendente(atual, texto.slice(0, 300), user.email);
+      else if (!resposta) await mensagem(conversa.id, "ia", "Pronto, registrei. A resposta chega aqui neste chat em até 48 horas.");
+    }
+    return json(ok);
   } catch (e) {
     console.error("suporte", e);
     return json({ erro: "Não foi possível enviar agora. Tente de novo." }, 500);

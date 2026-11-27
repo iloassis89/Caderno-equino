@@ -15,7 +15,18 @@ export const ASSUNTOS = [
   { valor: "sugestao", rotulo: "Dar uma sugestão", icone: "lightbulb-on-outline" },
   { valor: "afiliado", rotulo: "Quero ser parceiro", icone: "handshake-outline" },
   { valor: "venda", rotulo: "Compra ou venda", icone: "cart-outline" },
+  { valor: "outro", rotulo: "Outro assunto", icone: "chat-outline" },
 ];
+// mesma saudação do servidor, mostrada antes de a conversa existir
+const BOAS_VINDAS: Record<string, string> = {
+  duvida: "Olá! Qual é a sua dúvida? Pode perguntar sobre o app ou sobre os cuidados do dia a dia com o cavalo.",
+  problema: "Sinto muito pelo problema. Conte o que aconteceu: em qual tela estava, o que tocou e o que apareceu.",
+  anuncio: "Que bom que quer anunciar! Posso ver as vagas e os preços para você. É para qual empresa ou produto?",
+  sugestao: "Adoramos sugestões! Escreva a sua ideia para melhorar o app.",
+  afiliado: "Que bom que quer ser parceiro! Vou anotar seus dados para o dono do app avaliar. Qual é o seu nome e onde você divulga (Instagram, YouTube, loja…)?",
+  venda: "Certo! Conte o que você quer comprar ou vender, e eu anoto para o dono do app avaliar.",
+  outro: "Olá! Conte como posso ajudar.",
+};
 const nomeAssunto = (a: string) => ASSUNTOS.find((x) => x.valor === a)?.rotulo ?? "Outro assunto";
 
 const SITUACAO: Record<string, { t: string; c: string }> = {
@@ -42,34 +53,24 @@ function Ponto() {
 // ---------- Lista de atendimentos da pessoa ----------
 export function Suporte() {
   const nav = useNav();
-  const [ocupado, setOcupado] = useState<string | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
-  const lista = useCarga(async () => ok(await supabase.from("suporte_conversas")
-    .select("id,protocolo,assunto,status,nao_lida_usuario,updated_at").order("updated_at", { ascending: false }).limit(30)) ?? []);
-
-  async function abrir(assunto: string) {
-    if (ocupado) return;
-    setErro(null);
-    setOcupado(assunto);
-    const { data, erro: e } = await chamarFuncao<{ conversa: any }>("suporte", { acao: "abrir", assunto });
-    setOcupado(null);
-    if (e || !data?.conversa) return setErro(e ?? "Não foi possível abrir agora.");
-    nav.ir("SuporteConversa", { id: data.conversa.id });
-  }
+  const lista = useCarga(async () => {
+    const { data: u } = await supabase.auth.getUser();
+    return ok(await supabase.from("suporte_conversas").select("id,protocolo,assunto,status,nao_lida_usuario,updated_at")
+      .eq("user_id", u.user?.id ?? "").order("updated_at", { ascending: false }).limit(30)) ?? [];
+  });
 
   return (
     <Tela titulo="Suporte" voltar subtitulo="Conversa particular: só você e o atendimento do IAS Horse veem.">
       <Cabecalho texto="Sobre o que você quer falar?" />
       {ASSUNTOS.map((a) => (
-        <Cartao key={a.valor} onPress={() => abrir(a.valor)}>
+        <Cartao key={a.valor} onPress={() => nav.ir("SuporteConversa", { assunto: a.valor })}>
           <View style={[est.linha, { gap: 12 }]}>
             <Icone nome={a.icone} tamanho={30} cor={cor.mata} />
-            <Text style={[est.texto, { flex: 1, fontWeight: "700" }]}>{ocupado === a.valor ? "Abrindo…" : a.rotulo}</Text>
+            <Text style={[est.texto, { flex: 1, fontWeight: "700" }]}>{a.rotulo}</Text>
             <Icone nome="chevron-right" tamanho={28} cor={cor.tintaSuave} />
           </View>
         </Cartao>
       ))}
-      <Aviso texto={erro} tipo="erro" />
       <Text style={[est.textoSuave, { marginVertical: 6 }]}>
         Primeiro um assistente tenta resolver na hora. Se precisar, ele passa para uma pessoa, que responde aqui em até 48 horas.
       </Text>
@@ -129,12 +130,14 @@ function Baloes({ msgs, lado }: { msgs: any[]; lado: "usuario" | "admin" }) {
   );
 }
 
-function useConversa(id: string, lado: "usuario" | "admin") {
+function useConversa(id: string | null, lado: "usuario" | "admin") {
   const [conv, setConv] = useState<any | null>(null);
+  const [naoAchou, setNaoAchou] = useState(false);
   const [msgs, setMsgs] = useState<any[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const pedido = useRef(0);
   async function carregar() {
+    if (!id) return;
     const n = ++pedido.current;
     const [c, m] = await Promise.all([
       supabase.from("suporte_conversas").select("*").eq("id", id).maybeSingle(),
@@ -143,6 +146,7 @@ function useConversa(id: string, lado: "usuario" | "admin") {
     if (n !== pedido.current) return;
     if (c.error || m.error) return setErro(mensagemErro(c.error ?? m.error));
     setErro(null);
+    setNaoAchou(!c.data);
     setConv(c.data);
     setMsgs(m.data ?? []);
     if (c.data && (lado === "usuario" ? c.data.nao_lida_usuario : c.data.nao_lida_admin)) {
@@ -150,18 +154,22 @@ function useConversa(id: string, lado: "usuario" | "admin") {
     }
   }
   useEffect(() => {
+    if (!id) return;
     carregar();
     const t = setInterval(carregar, 20000); // procura respostas novas enquanto a tela está aberta
     return () => clearInterval(t);
   }, [id]);
-  return { conv, msgs, erro, carregar };
+  return { conv, msgs, erro, carregar, naoAchou };
 }
 
 // ---------- Conversa da pessoa ----------
-export function SuporteConversa({ id }: { id: string }) {
-  const { conv, msgs, erro, carregar } = useConversa(id, "usuario");
+// Sem id: rascunho. A conversa só é criada quando a pessoa manda a primeira mensagem.
+export function SuporteConversa({ id: idInicial, assunto }: { id?: string; assunto?: string }) {
+  const [id, setId] = useState<string | null>(idInicial ?? null);
+  const { conv, msgs, erro, carregar, naoAchou } = useConversa(id, "usuario");
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [pendente, setPendente] = useState<string | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
 
   async function enviar() {
@@ -169,15 +177,18 @@ export function SuporteConversa({ id }: { id: string }) {
     if (!t || enviando) return;
     setFalha(null);
     setEnviando(true);
+    setPendente(t);
     setTexto("");
-    const { erro: e } = await chamarFuncao("suporte", { conversa_id: id, texto: t });
+    const corpo = id ? { conversa_id: id, texto: t } : { acao: "abrir", assunto: assunto ?? "outro", texto: t };
+    const { data, erro: e } = await chamarFuncao<{ conversa_id?: string }>("suporte", corpo);
     setEnviando(false);
-    if (e) { setTexto(t); setFalha(e); }
-    carregar();
+    setPendente(null);
+    if (e) { setTexto(t); setFalha(e); return; }
+    if (!id && data?.conversa_id) setId(data.conversa_id); else carregar();
   }
 
   async function atendente() {
-    if (enviando) return;
+    if (enviando || !id) return;
     setFalha(null);
     setEnviando(true);
     const { erro: e } = await chamarFuncao("suporte", { conversa_id: id, acao: "atendente" });
@@ -186,20 +197,29 @@ export function SuporteConversa({ id }: { id: string }) {
     carregar();
   }
 
-  if (!conv) return <Tela titulo="Suporte" voltar>{erro ? <ErroCarga erro={erro} tentar={carregar} /> : <Carregando />}</Tela>;
-  const comPessoa = conv.status !== "ia";
+  if (id && !conv) {
+    return (
+      <Tela titulo="Suporte" voltar>
+        {naoAchou ? <Vazio texto="Conversa não encontrada." /> : erro ? <ErroCarga erro={erro} tentar={carregar} /> : <Carregando />}
+      </Tela>
+    );
+  }
+  const assuntoAtual = conv?.assunto ?? assunto ?? "outro";
+  const status = conv?.status ?? "ia";
+  const lista = conv ? msgs : [{ id: 0, autor: "ia", texto: BOAS_VINDAS[assuntoAtual] ?? BOAS_VINDAS.outro, created_at: new Date().toISOString() }];
+  const mostrar = pendente ? [...lista, { id: -1, autor: "usuario", texto: pendente, created_at: new Date().toISOString() }] : lista;
   return (
-    <Tela titulo={nomeAssunto(conv.assunto)} voltar subtitulo={`Protocolo ${conv.protocolo}`}>
-      {conv.status === "aguardando_atendente" && (
-        <Aviso texto={`Sua conversa está com o atendimento. A resposta chega aqui${conv.prazo_resposta ? ` até ${dataHora(conv.prazo_resposta)}` : " em até 48 horas"}. Pode fechar o app; quando chegar, aparece um aviso no Início.`} />
+    <Tela titulo={nomeAssunto(assuntoAtual)} voltar rolarFim={mostrar.length + (enviando ? 1 : 0)} subtitulo={conv ? `Protocolo ${conv.protocolo}` : "Conversa particular"}>
+      {status === "aguardando_atendente" && (
+        <Aviso texto={`Sua conversa está com o atendimento. A resposta chega aqui${conv?.prazo_resposta ? ` até ${dataHora(conv.prazo_resposta)}` : " em até 48 horas"}. Pode fechar o app; quando chegar, aparece um aviso no Início.`} />
       )}
-      {conv.assunto === "duvida" && conv.status === "ia" && <Aviso texto="Em caso de urgência (cólica, sangramento, animal caído), ligue para o veterinário agora." />}
-      <Baloes msgs={msgs} lado="usuario" />
-      {enviando && <Text style={[est.textoSuave, { marginVertical: 8 }]}>{comPessoa ? "Enviando…" : "O assistente está escrevendo…"}</Text>}
+      {assuntoAtual === "duvida" && status === "ia" && <Aviso texto="Em caso de urgência (cólica, sangramento, animal caído), ligue para o veterinário agora." />}
+      <Baloes msgs={mostrar} lado="usuario" />
+      {enviando && <Text style={[est.textoSuave, { marginVertical: 8 }]}>{status === "ia" ? "O assistente está escrevendo…" : "Enviando…"}</Text>}
       <Aviso texto={falha} tipo="erro" />
-      <Campo rotulo={conv.status === "encerrada" ? "Escreva para reabrir o atendimento" : "Sua mensagem"} value={texto} onChangeText={setTexto} multiline placeholder="Escreva aqui" />
+      <Campo rotulo="Sua mensagem" value={texto} onChangeText={setTexto} multiline placeholder="Escreva aqui" />
       <Botao titulo="Enviar" icone="send" onPress={enviar} carregando={enviando} desativado={!texto.trim()} />
-      {conv.status === "ia" && <Botao titulo="Falar com uma pessoa (até 48h)" tipo="leve" icone="account-tie" onPress={atendente} desativado={enviando} />}
+      {id && status === "ia" && <Botao titulo="Falar com uma pessoa (até 48h)" tipo="leve" icone="account-tie" onPress={atendente} desativado={enviando} />}
       <Text style={[est.textoSuave, { marginTop: 8, fontSize: 13 }]}>
         O assistente usa inteligência artificial e pode errar. Nada aqui é público. O assistente não dá diagnóstico nem indica remédio.
       </Text>
@@ -222,7 +242,7 @@ export function AdminSuporte() {
       <Escolha rotulo="Mostrar" valor={filtro} aoEscolher={setFiltro} colunas={2}
         opcoes={[{ valor: "abertas", rotulo: "Esperando você" }, { valor: "todas", rotulo: "Todas" }]} />
       <ErroCarga erro={lista.erro} tentar={lista.recarregar} />
-      {lista.carregando && !lista.dados ? <Carregando /> : (lista.dados ?? []).length === 0 ? <Vazio texto="Nada esperando resposta." /> :
+      {lista.carregando && !lista.dados ? <Carregando /> : (lista.dados ?? []).length === 0 ? <Vazio texto={filtro === "abertas" ? "Nada esperando resposta." : "Nenhuma conversa ainda."} /> :
         (lista.dados ?? []).map((c: any) => {
           const atrasada = c.status === "aguardando_atendente" && c.prazo_resposta && new Date(c.prazo_resposta) < new Date();
           return (
@@ -246,7 +266,7 @@ export function AdminSuporte() {
 }
 
 export function AdminConversa({ id }: { id: string }) {
-  const { conv, msgs, erro, carregar } = useConversa(id, "admin");
+  const { conv, msgs, erro, carregar, naoAchou } = useConversa(id, "admin");
   const [texto, setTexto] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [msg, setMsg] = useState<{ t: string; tipo: "ok" | "erro" } | null>(null);
@@ -272,9 +292,9 @@ export function AdminConversa({ id }: { id: string }) {
     carregar();
   }
 
-  if (!conv) return <Tela titulo="Conversa" voltar>{erro ? <ErroCarga erro={erro} tentar={carregar} /> : <Carregando />}</Tela>;
+  if (!conv) return <Tela titulo="Conversa" voltar>{naoAchou ? <Vazio texto="Conversa não encontrada." /> : erro ? <ErroCarga erro={erro} tentar={carregar} /> : <Carregando />}</Tela>;
   return (
-    <Tela titulo={nomeAssunto(conv.assunto)} voltar subtitulo={`${conv.protocolo}${extras.dados?.email ? ` · ${extras.dados.email}` : ""}`}>
+    <Tela titulo={nomeAssunto(conv.assunto)} voltar rolarFim={msgs.length} subtitulo={`${conv.protocolo}${extras.dados?.email ? ` · ${extras.dados.email}` : ""}`}>
       {(extras.dados?.anuncios ?? []).map((a: any) => <CartaoPedidoAnuncio key={a.id} p={a} aoMudar={() => { extras.recarregar(); carregar(); }} />)}
       {(extras.dados?.pedidos ?? []).map((p: any) => <CartaoPedidoAutorizacao key={p.id} p={p} aoMudar={() => { extras.recarregar(); carregar(); }} />)}
       <Baloes msgs={msgs} lado="admin" />
@@ -343,18 +363,16 @@ export function AdminPedidos() {
 
 // ---------- Pedidos de anúncio e fila de espera ----------
 const STATUS_ANUNCIO: Record<string, string> = {
-  reservado: "Vaga reservada", fila: "Fila de espera", aguardando_pagamento: "Link de pagamento enviado",
-  pago: "Pago", publicado: "Publicado", cancelado: "Cancelado",
+  reservado: "Vaga reservada (vence em 7 dias)", fila: "Fila de espera", aguardando_pagamento: "Link de pagamento enviado",
+  pago: "Pago — falta criar o anúncio", publicado: "No ar", cancelado: "Encerrado",
 };
 const PROXIMO: Record<string, { status: string; titulo: string; msg: string }[]> = {
   reservado: [{ status: "aguardando_pagamento", titulo: "Já enviei o link de pagamento", msg: "Enviamos o link de pagamento para o seu e-mail. Assim que pagar, avise aqui." }],
-  fila: [],
   aguardando_pagamento: [{ status: "pago", titulo: "Pagamento recebido", msg: "Pagamento recebido, obrigado! Agora mande aqui a imagem (ou o texto) e o link do anúncio." }],
-  pago: [{ status: "publicado", titulo: "Anúncio publicado", msg: "Seu anúncio já está no ar no IAS Horse." }],
-  publicado: [{ status: "cancelado", titulo: "Terminou (liberar a vaga)", msg: "O período do seu anúncio terminou. Obrigado pela parceria! Se quiser renovar, é só escrever aqui." }],
 };
 
 function CartaoPedidoAnuncio({ p, aoMudar }: { p: any; aoMudar: () => void }) {
+  const nav = useNav();
   const [ocupado, setOcupado] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   async function mudar(status: string, texto: string) {
@@ -369,7 +387,7 @@ function CartaoPedidoAnuncio({ p, aoMudar }: { p: any; aoMudar: () => void }) {
   return (
     <Cartao>
       <Text style={[est.texto, { fontWeight: "700" }]}>{p.anunciante}</Text>
-      <Text style={est.texto}>{STATUS_ANUNCIO[p.status]} · {reais(p.valor_centavos)}</Text>
+      <Text style={est.texto}>{STATUS_ANUNCIO[p.status]}{p.observacao ? ` (${p.observacao})` : ""} · {reais(p.valor_centavos)}</Text>
       <Text style={est.textoSuave}>
         {p.quantidade} {p.periodo === "mes" ? (p.quantidade > 1 ? "meses" : "mês") : (p.quantidade > 1 ? "semanas" : "semana")} · {p.responsavel}{p.documento ? ` (${p.documento})` : ""}
       </Text>
@@ -377,8 +395,10 @@ function CartaoPedidoAnuncio({ p, aoMudar }: { p: any; aoMudar: () => void }) {
       <Text style={est.textoSuave}>Pedido em {dataHora(p.created_at)}</Text>
       <Aviso texto={msg} tipo="erro" />
       {(PROXIMO[p.status] ?? []).map((a) => <Botao key={a.status} titulo={a.titulo} icone="arrow-right" onPress={() => mudar(a.status, a.msg)} carregando={ocupado} />)}
+      {p.status === "pago" && <Botao titulo="Criar o anúncio" icone="bullhorn-outline" onPress={() => nav.ir("AdminAnuncios", { pedido: p })} />}
+      {p.status === "publicado" && <Text style={est.textoSuave}>Quando o anúncio passar da data final (ou for pausado), a vaga se libera e o próximo da fila é avisado.</Text>}
       {p.status === "fila" && <Text style={est.textoSuave}>Quando uma vaga for liberada, o primeiro da fila vira "reservado" sozinho e recebe aviso no chat.</Text>}
-      {!["cancelado", "publicado"].includes(p.status) && (
+      {["reservado", "fila", "aguardando_pagamento", "pago"].includes(p.status) && (
         <BotaoConfirmar titulo="Cancelar pedido" icone="close-circle-outline" carregando={ocupado}
           onConfirmar={() => mudar("cancelado", "Seu pedido de anúncio foi cancelado. Se quiser, é só escrever aqui de novo.")} />
       )}
@@ -389,10 +409,13 @@ function CartaoPedidoAnuncio({ p, aoMudar }: { p: any; aoMudar: () => void }) {
 export function AdminPedidosAnuncio() {
   const nav = useNav();
   const [filtro, setFiltro] = useState<string | null>("andamento");
-  const vagas = useCarga(async () => (ok(await supabase.rpc("situacao_vagas_anuncio")) as any[])?.[0] ?? null);
+  const vagas = useCarga(async () => {
+    await supabase.rpc("arrumar_vagas_anuncio"); // sobe a fila e vence reservas paradas
+    return (ok(await supabase.rpc("situacao_vagas_anuncio")) as any[])?.[0] ?? null;
+  });
   const lista = useCarga(async () => {
     let q = supabase.from("anuncio_pedidos").select("*").order("created_at").limit(100);
-    if (filtro === "andamento") q = q.in("status", ["reservado", "fila", "aguardando_pagamento", "pago"]);
+    if (filtro === "andamento") q = q.in("status", ["reservado", "fila", "aguardando_pagamento", "pago", "publicado"]);
     return ok(await q) ?? [];
   }, [filtro]);
   const v = vagas.dados;
@@ -445,24 +468,28 @@ export function AdminConfig() {
   }, [cfg.dados]);
 
   const emailValido = (e: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e.trim());
-  const centavos = (t: string) => { const n = Number(t.replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null; };
+  // aceita "49", "49,00", "49.00", "1.490,00" e "1,490.00"
+  const centavos = (t: string) => {
+    let v = t.trim().replace(/\s|R\$/g, "");
+    const m = v.match(/^(.*)[.,](\d{1,2})$/);
+    v = m ? `${m[1].replace(/[.,]/g, "")}.${m[2]}` : v.replace(/[.,]/g, "");
+    const n = Number(v);
+    return v !== "" && Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
+  };
 
   async function salvar() {
     if (ocupado) return;
     setMsg(null);
     if (!emailValido(email)) return setMsg({ t: "E-mail de avisos inválido.", tipo: "erro" });
     const nv = Number(vagas);
-    if (!Number.isInteger(nv) || nv < 0 || nv > 20) return setMsg({ t: "Número de vagas deve ser de 0 a 20.", tipo: "erro" });
+    if (!vagas.trim() || !Number.isInteger(nv) || nv < 0 || nv > 20) return setMsg({ t: "Número de vagas deve ser de 0 a 20.", tipo: "erro" });
     const cs = centavos(semana), cm = centavos(mes);
     if (!cs || !cm) return setMsg({ t: "Preencha os preços (ex.: 49,00).", tipo: "erro" });
     setOcupado(true);
-    const mudancas: [string, any][] = [["email_avisos", email.trim().toLowerCase()], ["anuncio_vagas", nv], ["anuncio_preco_semana_centavos", cs], ["anuncio_preco_mes_centavos", cm]];
-    for (const [chave, valor] of mudancas) {
-      const { error } = await supabase.from("configuracoes").update({ valor, atualizado_em: new Date().toISOString() }).eq("chave", chave);
-      if (error) { setOcupado(false); return setMsg({ t: mensagemErro(error), tipo: "erro" }); }
-    }
+    const { error } = await supabase.rpc("salvar_configuracoes", { p_email: email.trim(), p_vagas: nv, p_semana: cs, p_mes: cm });
     setOcupado(false);
-    setMsg({ t: "Configurações guardadas.", tipo: "ok" });
+    if (error) return setMsg({ t: mensagemErro(error), tipo: "erro" });
+    setMsg({ t: `Guardado: ${nv} vaga(s), ${reais(cs)} por semana e ${reais(cm)} por mês. Avisos para ${email.trim().toLowerCase()}.`, tipo: "ok" });
     cfg.recarregar();
   }
 

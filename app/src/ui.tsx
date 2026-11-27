@@ -21,12 +21,20 @@ export function Icone({ nome, tamanho = 24, cor: c = cor.tinta }: { nome: string
 }
 
 // ---------- Estrutura da tela ----------
-export function Tela({ titulo, subtitulo, voltar, children, acao }: {
+export function Tela({ titulo, subtitulo, voltar, children, acao, rolarFim }: {
   titulo: string; subtitulo?: string; voltar?: boolean; children: React.ReactNode; acao?: React.ReactNode;
+  rolarFim?: number; // conversas: número de mensagens; quando muda, desce até a última
 }) {
   const nav = useNav();
+  const rolagem = React.useRef<React.ComponentRef<typeof ScrollView>>(null);
+  React.useEffect(() => {
+    if (!rolarFim) return;
+    const t = setTimeout(() => rolagem.current?.scrollToEnd({ animated: false }), 80);
+    return () => clearTimeout(t);
+  }, [rolarFim]);
   return (
-    <ScrollView style={est.tela} contentContainerStyle={est.conteudo} keyboardShouldPersistTaps="handled">
+    <ScrollView ref={rolagem} style={est.tela} contentContainerStyle={est.conteudo} keyboardShouldPersistTaps="handled"
+>
       {voltar && (
         <Pressable onPress={nav.voltar} accessibilityRole="button" accessibilityLabel="Voltar"
           style={{ flexDirection: "row", alignItems: "center", minHeight: 44, marginBottom: 2, alignSelf: "flex-start", paddingRight: 12 }}>

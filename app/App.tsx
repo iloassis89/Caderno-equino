@@ -58,10 +58,10 @@ function renderizar(r: Rota) {
     case "Assistente": return <Assistente />;
     case "Admin": return <Admin />;
     case "AdminCortesias": return <AdminCortesias />;
-    case "AdminAnuncios": return <AdminAnuncios />;
+    case "AdminAnuncios": return <AdminAnuncios pedido={p.pedido} />;
     case "AdminDicas": return <AdminDicas />;
     case "Suporte": return <Suporte />;
-    case "SuporteConversa": return <SuporteConversa id={p.id} />;
+    case "SuporteConversa": return <SuporteConversa id={p.id} assunto={p.assunto} />;
     case "AdminSuporte": return <AdminSuporte />;
     case "AdminConversa": return <AdminConversa id={p.id} />;
     case "AdminPedidos": return <AdminPedidos />;
