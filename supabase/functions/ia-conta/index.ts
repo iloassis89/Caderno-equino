@@ -22,7 +22,8 @@ Deno.serve(async (req) => {
     }
 
     if (corpo.acao === "desvincular") {
-      await admin.rpc("apagar_chave_ia", { p_user: user.id });
+      const { error } = await admin.rpc("apagar_chave_ia", { p_user: user.id });
+      if (error) throw error;
       return json({ ok: true });
     }
 
@@ -33,6 +34,8 @@ Deno.serve(async (req) => {
       if (!FORMATO[provedor].test(chave)) {
         return json({ erro: `Essa chave não parece ser do ${NOME_PROVEDOR[provedor]}. Copie a chave inteira e cole aqui.` }, 400);
       }
+      const { data: pode } = await admin.rpc("tentar_vincular_ia", { p_user: user.id });
+      if (!pode) return json({ erro: "Muitas tentativas hoje. Tente de novo amanhã." }, 429);
       // testa a chave antes de guardar
       try {
         const r = await perguntarIA({ provedor, chave, propria: true }, "Responda só com a palavra OK.", [{ role: "user", content: "Teste" }], 20);

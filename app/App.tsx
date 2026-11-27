@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, BackHandler, Platform, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, AppState, BackHandler, Platform, Pressable, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as Linking from "expo-linking";
@@ -15,7 +15,7 @@ import { Documentos, Ficha, FotosAnotacao, Historico, NovoRegistro } from "./src
 import { Estoque, NovoItem, NovoMovimento } from "./src/telas/Estoque";
 import { Agenda, LembreteFeito, NovaTarefa, NovoLembrete } from "./src/telas/Agenda";
 import MinhaIA from "./src/telas/MinhaIA";
-import { ouvirToques, sincronizarLembretes } from "./src/lembretes";
+import { limparAvisos, ouvirToques, sincronizarLembretes } from "./src/lembretes";
 import Resumo from "./src/telas/Resumo";
 import Planos from "./src/telas/Planos";
 import Dieta from "./src/telas/Dieta";
@@ -51,8 +51,8 @@ function renderizar(r: Rota) {
     case "NovoMovimento": return <NovoMovimento itemId={p.itemId} />;
     case "Tarefas": case "Agenda": return <Agenda />;
     case "NovaTarefa": return <NovaTarefa tarefa={p.tarefa} />;
-    case "NovoLembrete": return <NovoLembrete lembrete={p.lembrete} />;
-    case "LembreteFeito": return <LembreteFeito id={p.id} horario={p.horario ?? ""} />;
+    case "NovoLembrete": return <NovoLembrete lembrete={p.lembrete} animalId={p.animalId} tipo={p.tipo} />;
+    case "LembreteFeito": return <LembreteFeito id={p.id} horario={p.horario ?? ""} dia={p.dia} antes={p.antes} />;
     case "FotosAnotacao": return <FotosAnotacao recordId={p.recordId} animalId={p.animalId} />;
     case "Ajuda": return <Ajuda />;
     case "MinhaIA": return <MinhaIA />;
@@ -108,7 +108,7 @@ export default function App() {
     const { data: sub } = supabase.auth.onAuthStateChange((evento, s) => {
       setSessao(s);
       if (evento === "PASSWORD_RECOVERY") setTrocarSenha(true);
-      if (evento === "SIGNED_OUT") { setPago(false); setAdmin(false); setPilha([{ nome: "Inicio" }]); setVersao((v) => v + 1); setTrocarSenha(false); }
+      if (evento === "SIGNED_OUT") { limparAvisos(); setPago(false); setAdmin(false); setPilha([{ nome: "Inicio" }]); setVersao((v) => v + 1); setTrocarSenha(false); }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -126,10 +126,13 @@ export default function App() {
   useEffect(() => {
     if (!logado) return;
     sincronizarLembretes().catch(() => {});
-    return ouvirToques((id, horario) => {
-      setPilha([{ nome: "Inicio" }, { nome: "LembreteFeito", params: { id, horario } }]);
+    // volta do segundo plano: reagenda (mantém a janela de 14 dias dos remédios)
+    const sub = AppState.addEventListener("change", (s) => { if (s === "active") sincronizarLembretes().catch(() => {}); });
+    const parar = ouvirToques((id, horario, dia, antes) => {
+      setPilha([{ nome: "Inicio" }, { nome: "LembreteFeito", params: { id, horario, dia, antes } }]);
       setVersao((v) => v + 1);
     });
+    return () => { sub.remove(); parar(); };
   }, [logado]);
 
   // Volta do Stripe: abre a tela de planos com a mensagem certa

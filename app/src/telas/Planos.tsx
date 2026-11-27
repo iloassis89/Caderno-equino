@@ -124,7 +124,7 @@ export default function Planos({ retorno }: { retorno?: string }) {
 
       <Cartao>
         <Text style={[est.texto, { fontWeight: "700" }]}>Grátis (1 animal)</Text>
-        {["Anotar tocando", "Lembretes no celular (comida, água, remédio da receita, tarefas)", "Alimentação com avaliação por IA", "Assistente com IA (5 por dia, ou sem limite com a sua IA)", "Foto e documento do animal", "Últimos 30 dias de histórico"].map((t) => (
+        {["Anotar tocando", "Lembretes no celular (comida, água, remédio da receita, tarefas)", "Alimentação com avaliação por IA", "Assistente com IA (5 por dia, ou bem mais com a sua própria IA)", "Foto e documento do animal", "Últimos 30 dias de histórico"].map((t) => (
           <Text key={t} style={est.texto}>✓ {t}</Text>
         ))}
         <Text style={[est.texto, { fontWeight: "700", marginTop: 12 }]}>Pago: a partir de R$ 9,90 por mês</Text>

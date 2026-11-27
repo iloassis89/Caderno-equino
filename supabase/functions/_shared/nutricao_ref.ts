@@ -28,7 +28,7 @@ Uso: comparar a dieta informada com estes valores e apontar **possíveis** exces
 | Potro de 12 meses (PV 321 kg; ganho 0,45 kg/d) | 18,8 | 846 | 36,4 | 37,7 | 20,9 | 5,4 | 6,9 | 2,5 |
 | Potro de 18 meses (PV 387 kg; ganho 0,29 kg/d) | 19,2 | 799 | 34,4 | 37,0 | 20,6 | 6,2 | 8,0 | 2,5 |
 
-\\*Consumo de MS que o NRC assumiu para montar a tabela [1]. Não é um limite. O consumo habitual fica em 2–2,5% PV [3] e o máximo em cerca de 2,5–3% PV [2].
+(*) Consumo de MS que o NRC assumiu para montar a tabela [1]. Não é um limite. O consumo habitual fica em 2–2,5% PV [3] e o máximo em cerca de 2,5–3% PV [2].
 
 **Microminerais e vitaminas por dia** [1]
 
@@ -193,43 +193,43 @@ Vale para cavalos com laminite prévia, resistência à insulina, mais de 15 ano
 
 ## Fontes
 
-1. NRC. *Nutrient Requirements of Horses*, 6ª ed., 2007. Tabelas 1-2, 1-10, 16-3 e 16-6. https://arquivos.ufrrj.br/arquivos/2023029093996c3814441fa06d569b53f/5._NRC_2007.pdf · https://webassets.nationalacademies.org/nrh/
-2. Merck Vet Manual. Nutritional Requirements of Horses. https://www.merckvetmanual.com/management-and-nutrition/nutrition-horses/nutritional-requirements-of-horses-and-other-equids
-3. Merck Vet Manual. Feeding Practices in Horses. https://www.merckvetmanual.com/management-and-nutrition/nutrition-horses/feeding-practices-in-horses-and-other-equids
-4. Merck Vet Manual. Tabela de energia do trabalho e escore corporal. https://www.merckvetmanual.com/multimedia/table/estimated-energy-requirements-of-work-for-light-horses-and-desirable-body-condition-scores
-5. UMN Extension. Ten things… feeding the mature horse. https://extension.umn.edu/horse-nutrition/ten-things-you-should-know-about-feeding-mature-horse
-6. UMN Extension. Managing forage carbohydrate content. https://extension.umn.edu/horse-nutrition/managing-forage-carbohydrate-content
-7. AAEP Proceedings 2020. How to Feed Performance Horses for Optimal Digestive Health. https://pubs.aaep.org/0A4370h/66thAnnCon2020/html/85.html
-8. Vervuert et al. 2008, resumido em Horse Science News. https://www.horsesciencenews.com/horse-care/feed/guidelines-for-feeding-horses-starch.php
-9. KER. EGUS: Dietary Management. https://ker.com/?p=19664
-10. KER. Selênio. https://ker.com/?p=18115
-11. KER. Ideal Salt Levels for Horses Examined. https://ker.com/?p=12406
-12. KER. Assessing Energy Balance. https://ker.com/?p=4185
-13. eXtension Horses. Changing the Diet of Horses. https://horses.extension.org/changing-the-diet-of-horses/
-14. KER. Make Horse Feed Changes Gradually. https://ker.com/?p=13635
-15. Manual MSD (PT). Uso de ionóforos em animais. https://www.msdvetmanual.com/pt/pharmacology/medicamentos-antibacterianos/uso-de-ion%C3%B3foros-em-animais
-16. Sousa et al. Intoxicação por monensina em equinos (suplemento com melaço). Acta Sci. Vet. 47 supl. 1, 2019. https://bvs-vet.org.br/vetindex/periodicos/acta-scientiae-veterinariae/47-(2019)-suppl.1/surto-de-intoxicacao-por-monensina-sodica-em-equinos-associada-a-consu
-17. Echenique et al. Leucoencefalomalácia por milho imaturo. Ciência Rural 49(3), 2019. https://www.scielo.br/j/cr/a/mbzmQPgtTymXDqZjB5FpDpS/
-18. FDA. Fumonisin Levels in Human Foods and Animal Feeds. https://www.fda.gov/regulatory-information/search-fda-guidance-documents/guidance-industry-fumonisin-levels-human-foods-and-animal-feeds
-19. Nunes, Silva e Schenk. Problemas com cavalos em pastagens de Humidicola. Embrapa CT-37, 1990. https://www.infoteca.cnptia.embrapa.br/infoteca/bitstream/doc/319852/1/COT37.pdf
-20. Ávila et al. Hiperparatireoidismo nutricional secundário em equinos. Nota técnica UFMS 03/2023. https://ppgcivet.ufms.br/files/2023/04/Nota-tecnica-03-2023-Hiperparatireoidismo-nutricional-secundario-em-equinos.pdf
-21. Fontes de minerais em cavalos com HNS. Arq. Bras. Med. Vet. Zootec., 2021. https://qa1.scielo.br/j/abmvz/a/mGRGDPjDdYtpfKQJsMW9WTh/?lang=en
-22. Barbosa et al. Fotossensibilização em equinos por *B. humidicola*. Pesq. Vet. Bras. 26(3), 2006. https://repositorio.ufpa.br/bitstream/2011/2495/1/Artigo_FotossensibilizacaoHepatogenaEquinos.pdf
-23. Mustafa et al. Intoxicação por *Brachiaria* em ovinos. Pesq. Vet. Bras. 32(12), 2012. https://repositorio.unb.br/bitstream/10482/28354/1/ARTIGO_IntoxicacaoNaturalBrachiaria.pdf
-24. Feedipedia. Bermuda grass (capim verde e feno). https://www.feedipedia.org/node/471 · https://feedipedia.org/node/11847 · https://feedipedia.org/node/11850
-25. Feedipedia. *B. brizantha*. https://www.feedipedia.org/node/490
-26. Feedipedia. *B. decumbens*. https://www.feedipedia.org/node/489
-27. Feedipedia. Capim-elefante. https://feedipedia.org/node/12365 · https://www.feedipedia.org/node/395
-28. Feedipedia. Feno de alfafa. https://feedipedia.org/node/11743
-29. Feedipedia. Milho, América Central e do Sul. https://feedipedia.review.fao.org/node/11664
-30. Feedipedia. Aveia. https://www.feedipedia.org/node/231
-31. Feedipedia. Farelo de trigo. https://www.feedipedia.org/node/726
-32. Feedipedia. Farelo de soja 44–46. https://feedipedia.org/node/11682
-33. Feedipedia. Polpa cítrica seca. https://feedipedia.org/node/11987
-34. UF/IFAS Florida Equine Institute 2006. Selecting Hay. https://extadmin.ifas.ufl.edu/media/extadminifasufledu/cflag/image/docs/fl-equine-institute/2006/SelectingHay.pdf
-35. Ferreira. Monografia UFU, 2023 (cita CQBAL 4.0 e Machado et al. 2010). https://repositorio.ufu.br/bitstream/123456789/38247/1/Composi%c3%a7%c3%a3oQu%c3%admicoBromatol%c3%b3gica.pdf
-36. Brito. Dissertação UFC, 2016 (feno de Tifton em equídeos). https://repositorio.ufc.br/ri/bitstream/riufc/21548/3/2016_dis_jcbrito.pdf
-37. Lima. Portfólio brasileiro de rações para equinos. TCC IFMG, 2026. https://repositorio.ifmg.edu.br/bitstreams/6ca5c344-7113-4471-a67e-193e1f97827b/download
-38. MSU Extension. Body Condition Scoring. https://extension.msstate.edu/publications/body-condition-scoring-system-benefits-for-horses-and-owners
-39. Rodrigues. Embrapa Clima Temperado, Documentos 270, 2009. https://www.infoteca.cnptia.embrapa.br/infoteca/bitstream/doc/747548/1/documento270.pdf
+1. NRC. *Nutrient Requirements of Horses*, 6ª ed., 2007. Tabelas 1-2, 1-10, 16-3 e 16-6.
+2. Merck Vet Manual. Nutritional Requirements of Horses.
+3. Merck Vet Manual. Feeding Practices in Horses.
+4. Merck Vet Manual. Tabela de energia do trabalho e escore corporal.
+5. UMN Extension. Ten things… feeding the mature horse.
+6. UMN Extension. Managing forage carbohydrate content.
+7. AAEP Proceedings 2020. How to Feed Performance Horses for Optimal Digestive Health.
+8. Vervuert et al. 2008, resumido em Horse Science News.
+9. KER. EGUS: Dietary Management.
+10. KER. Selênio.
+11. KER. Ideal Salt Levels for Horses Examined.
+12. KER. Assessing Energy Balance.
+13. eXtension Horses. Changing the Diet of Horses.
+14. KER. Make Horse Feed Changes Gradually.
+15. Manual MSD (PT). Uso de ionóforos em animais.
+16. Sousa et al. Intoxicação por monensina em equinos (suplemento com melaço). Acta Sci. Vet. 47 supl. 1, 2019.
+17. Echenique et al. Leucoencefalomalácia por milho imaturo. Ciência Rural 49(3), 2019.
+18. FDA. Fumonisin Levels in Human Foods and Animal Feeds.
+19. Nunes, Silva e Schenk. Problemas com cavalos em pastagens de Humidicola. Embrapa CT-37, 1990.
+20. Ávila et al. Hiperparatireoidismo nutricional secundário em equinos. Nota técnica UFMS 03/2023.
+21. Fontes de minerais em cavalos com HNS. Arq. Bras. Med. Vet. Zootec., 2021.
+22. Barbosa et al. Fotossensibilização em equinos por *B. humidicola*. Pesq. Vet. Bras. 26(3), 2006.
+23. Mustafa et al. Intoxicação por *Brachiaria* em ovinos. Pesq. Vet. Bras. 32(12), 2012.
+24. Feedipedia. Bermuda grass (capim verde e feno).
+25. Feedipedia. *B. brizantha*.
+26. Feedipedia. *B. decumbens*.
+27. Feedipedia. Capim-elefante.
+28. Feedipedia. Feno de alfafa.
+29. Feedipedia. Milho, América Central e do Sul.
+30. Feedipedia. Aveia.
+31. Feedipedia. Farelo de trigo.
+32. Feedipedia. Farelo de soja 44–46.
+33. Feedipedia. Polpa cítrica seca.
+34. UF/IFAS Florida Equine Institute 2006. Selecting Hay.
+35. Ferreira. Monografia UFU, 2023 (cita CQBAL 4.0 e Machado et al. 2010).
+36. Brito. Dissertação UFC, 2016 (feno de Tifton em equídeos).
+37. Lima. Portfólio brasileiro de rações para equinos. TCC IFMG, 2026.
+38. MSU Extension. Body Condition Scoring.
+39. Rodrigues. Embrapa Clima Temperado, Documentos 270, 2009.
 `;

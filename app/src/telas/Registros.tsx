@@ -158,7 +158,7 @@ export function NovoRegistro({ registro, animalId }: { registro?: any; animalId?
   const [reproLembretes, setReproLembretes] = useState<string[]>([]);
   const [peso, setPeso] = useState(registro?.peso_kg != null ? String(registro.peso_kg).replace(".", ",") : "");
   const [comoPesou, setComoPesou] = useState<string | null>(registro?.medidas?.peso_estimado_fita ? "fita" : registro?.peso_kg != null ? "balanca" : null);
-  const [escore, setEscore] = useState<string | null>(registro?.escore_corporal != null ? String(Math.round(Number(registro.escore_corporal))) : null);
+  const [escore, setEscore] = useState<string | null>(registro?.escore_corporal != null ? String(Number(registro.escore_corporal)) : null);
   const [perimetro, setPerimetro] = useState(registro?.medidas?.perimetro_toracico_cm ? String(registro.medidas.perimetro_toracico_cm) : "");
   const [comprimento, setComprimento] = useState(registro?.medidas?.comprimento_corpo_cm ? String(registro.medidas.comprimento_corpo_cm) : "");
   const [erro, setErro] = useState<string | null>(null);
@@ -204,7 +204,9 @@ export function NovoRegistro({ registro, animalId }: { registro?: any; animalId?
     if (!descricao) return setErro("Toque em pelo menos uma opção ou escreva algo.");
     const pc = ehPeso ? lerNumero(perimetro) : null, cc = ehPeso ? lerNumero(comprimento) : null;
     const medidas = ehPeso && (pc || cc || comoPesou === "fita") ? { perimetro_toracico_cm: pc || null, comprimento_corpo_cm: cc || null, peso_estimado_fita: comoPesou === "fita" && !!p } : registro?.medidas ?? null;
-    const cat = categoria === "algo_diferente" ? (status === "avaliacao_veterinaria" ? "sinal_avaliacao_profissional" : "ocorrencia") : categoria;
+    const cat = categoria === "algo_diferente"
+      ? (status === "avaliacao_veterinaria" || registro?.categoria === "sinal_avaliacao_profissional" ? "sinal_avaliacao_profissional" : "ocorrencia")
+      : categoria;
     const responsavel = (quemOutro.trim() || quem || "").trim() || null;
 
     setSalvando(true);
@@ -284,7 +286,7 @@ export function NovoRegistro({ registro, animalId }: { registro?: any; animalId?
                 </>
               )}
               <Escolha rotulo="Escore corporal (1 = muito magro · 5 = ideal · 9 = muito gordo)" valor={escore} aoEscolher={setEscore} permitirVazio
-                opcoes={["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((n) => ({ valor: n, rotulo: n }))} />
+                opcoes={[...new Set(["1", "2", "3", "4", "5", "6", "7", "8", "9", ...(escore ? [escore] : [])])].sort((a, b) => Number(a) - Number(b)).map((n) => ({ valor: n, rotulo: n.replace(".", ",") }))} />
             </Cartao>
           )}
 

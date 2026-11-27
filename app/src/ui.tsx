@@ -283,14 +283,14 @@ export function Horarios({ rotulo, prontos, valores, aoMudar, maximo = 8 }: {
   function addOutro() {
     const m = outro.trim().replace(/[^0-9]/g, "");
     const t = m.length >= 3 ? `${m.slice(0, m.length - 2).padStart(2, "0")}:${m.slice(-2)}` : "";
-    if (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(t) || valores.includes(t) || valores.length >= maximo) return;
-    aoMudar([...valores, t].sort());
+    if (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(t) || valores.includes(t)) return;
+    if (maximo === 1) aoMudar([t]); else if (valores.length < maximo) aoMudar([...valores, t].sort()); else return;
     setOutro("");
   }
   return (
     <View>
       <EscolhaVarias rotulo={rotulo} opcoes={todos.map((h) => ({ valor: h, rotulo: h }))} valores={valores}
-        aoMudar={(v) => aoMudar(v.slice(0, maximo).sort())} />
+        aoMudar={(v) => aoMudar(maximo === 1 ? v.slice(-1) : v.slice(0, maximo).sort())} />
       <View style={[{ flexDirection: "row", alignItems: "flex-end", gap: 8 }]}>
         <View style={{ flex: 1 }}>
           <Campo rotulo="Outro horário (ex.: 0930)" value={outro} onChangeText={setOutro} keyboardType="number-pad" maxLength={5} />

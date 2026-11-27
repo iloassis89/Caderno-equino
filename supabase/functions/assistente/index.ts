@@ -1,5 +1,5 @@
 // Assistente do IAS Horse: tira dúvidas simples sobre manejo e sobre o uso do app.
-// Nunca dá diagnóstico nem indica remédio. Limite diário por plano (grátis 3, pago 30).
+// Nunca dá diagnóstico nem indica remédio. Limite diário por plano (grátis 5, pago 30).
 // Quem vincula a própria IA (Mais → Minha IA) usa a conta dela, sem a cota do app.
 import { admin, cors, json, usuarioDaRequisicao } from "../_shared/comum.ts";
 import { contaIA, erroAmigavel, perguntarIA, textoSimples } from "../_shared/ia.ts";
@@ -24,15 +24,14 @@ Limites obrigatórios:
 - Não invente números. Referências que pode usar: matéria seca total de 2 a 2,5% do peso por dia; volumoso pelo menos metade da dieta; no máximo 0,5% do peso de ração por refeição; água de 5 a 8 litros por 100 kg por dia, mais no calor; mudanças de alimentação aos poucos; nada de feno ou silagem com mofo.
 
 Como o app funciona (para ensinar):
-- Botão Anotar (no meio, embaixo): escolher o animal, o assunto, a situação (Feito, Vou fazer, Confirmar depois, Chamar veterinário) e escrever o que aconteceu.
-- Animais: cadastrar, ver a ficha, guardar foto e documento de registro (tirar foto, galeria ou arquivo PDF).
-- Na ficha: última atualização, botões "Enviar relatório em PDF" e "Mandar pelo WhatsApp" (planos pagos), Alimentação e Peso.
-- Peso sem balança: Anotar → Peso e corpo → medir a volta do peito e o comprimento do corpo com fita e tocar em Calcular.
-- Histórico: todas as anotações, com filtros.
-- Alimentação (na ficha do animal): anotar o que ele come e tocar em "Avaliar com a IA" para ver possíveis excessos e faltas.
-- Lembretes: despertador para alimentação, remédio (conforme a receita do veterinário), água, tarefas e reposição do estoque.
-- Mais: Lembretes, Estoque e compras, Tarefas, Resumo da semana, Dicas, Minha IA, Suporte, Planos.
-- Plano grátis: 1 animal, anotações, alimentação com avaliação pela IA, lembretes, documentos, tarefas, 30 dias de histórico. Planos pagos a partir de R$ 9,90 por mês liberam tudo.`;
+- Abas embaixo: Início, Animais, Anotar (botão verde do meio), Agenda e Mais.
+- Anotar: escolher o assunto (Comida, Água, Remédio/vacina, Cascos, Peso e corpo, Dentes, Exames e GTA, Reprodução, Treino, Comportamento, Algo diferente) e tocar nas opções. "Hoje" e "Feito" já vêm marcados. Situações: Feito, Vou fazer, Não sei ainda, Chamar veterinário. Escrever é opcional. "Lembrar de novo" cria um lembrete com data (ex.: ferrador em 45 dias).
+- Peso sem balança: Anotar → Peso e corpo → Fita métrica: medir a volta do peito e o comprimento do corpo; o app mostra o peso estimado.
+- Agenda: lembretes que tocam no celular (comida, água, remédio da receita), tarefas com data e "comprar de novo" (planos pagos). No site o celular não toca; precisa do app Android.
+- Início: "Para fazer hoje"; um toque marca como feito.
+- Animais → ficha: Alimentação (anotar o que come e "Avaliar a alimentação com a IA"), Documentos, PDF e WhatsApp para o veterinário (planos pagos).
+- Mais: Estoque, Todas as anotações, Resumo da semana, Minha IA (usar a própria conta Gemini, ChatGPT ou Claude), Ajuda (dicas, tutorial, falar com a gente), Meu plano.
+- Plano grátis: 1 animal, anotações, lembretes, alimentação com IA, assistente 5 por dia, 30 dias de histórico. Pago a partir de R$ 9,90 por mês: mais animais, PDF/WhatsApp, estoque, fotos nas anotações, histórico completo, assistente 30 por dia.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });

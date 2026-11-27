@@ -33,8 +33,8 @@ function classificar(status: number, corpo: string): ErroIA {
   return new ErroIA(status, `IA ${status}: ${corpo.slice(0, 300)}`, invalida, semSaldo);
 }
 
-/** Pergunta à IA e devolve só o texto. */
-export async function perguntarIA(conta: ContaIA, sistema: string, mensagens: MsgIA[], maxTokens = 700): Promise<string> {
+/** Pergunta à IA e devolve só o texto. json = pede resposta em JSON; cache = guarda o texto do sistema (Anthropic) */
+export async function perguntarIA(conta: ContaIA, sistema: string, mensagens: MsgIA[], maxTokens = 700, opc: { json?: boolean; cache?: boolean } = {}): Promise<string> {
   const modelo = MODELO[conta.provedor];
   let r: Response;
   if (conta.provedor === "gemini") {
@@ -44,6 +44,7 @@ export async function perguntarIA(conta: ContaIA, sistema: string, mensagens: Ms
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: sistema }] },
         contents: mensagens.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+        ...(opc.json ? { generationConfig: { responseMimeType: "application/json" } } : {}),
       }),
     });
     if (!r.ok) throw classificar(r.status, await r.text());
@@ -54,7 +55,11 @@ export async function perguntarIA(conta: ContaIA, sistema: string, mensagens: Ms
     r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { authorization: `Bearer ${conta.chave}`, "content-type": "application/json" },
-      body: JSON.stringify({ model: modelo, max_completion_tokens: Math.max(maxTokens * 3, 1500), messages: [{ role: "system", content: sistema }, ...mensagens] }),
+      body: JSON.stringify({
+        model: modelo, max_completion_tokens: Math.max(maxTokens * 3, 2000), reasoning_effort: "low",
+        messages: [{ role: "system", content: sistema }, ...mensagens],
+        ...(opc.json ? { response_format: { type: "json_object" } } : {}),
+      }),
     });
     if (!r.ok) throw classificar(r.status, await r.text());
     const d = await r.json();
@@ -63,7 +68,10 @@ export async function perguntarIA(conta: ContaIA, sistema: string, mensagens: Ms
   r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": conta.chave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: modelo, max_tokens: maxTokens, system: sistema, messages: mensagens }),
+    body: JSON.stringify({
+      model: modelo, max_tokens: maxTokens, messages: mensagens,
+      system: opc.cache ? [{ type: "text", text: sistema, cache_control: { type: "ephemeral" } }] : sistema,
+    }),
   });
   if (!r.ok) throw classificar(r.status, await r.text());
   const d = await r.json();

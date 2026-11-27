@@ -243,7 +243,7 @@ export default function Dieta({ animalId, nome }: { animalId: string; nome: stri
       ) : (
         <View style={{ flexDirection: "row", gap: 10 }}>
           <Botao titulo="Alimento" icone="plus-circle" style={{ flex: 1 }} onPress={novo} />
-          <Botao titulo="Horários" icone="bell-plus-outline" tipo="leve" style={{ flex: 1 }} onPress={() => nav.ir("NovoLembrete")} />
+          <Botao titulo="Horários" icone="bell-plus-outline" tipo="leve" style={{ flex: 1 }} onPress={() => nav.ir("NovoLembrete", { animalId, tipo: "alimentacao" })} />
         </View>
       )}
 

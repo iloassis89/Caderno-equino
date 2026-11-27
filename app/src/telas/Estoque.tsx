@@ -151,7 +151,7 @@ export function NovoMovimento({ itemId, tipo: tipoInicial }: { itemId?: string; 
     const q = lerNumero(quantidade) as number;
     if (!Number.isFinite(q) || (tipo !== "ajuste" && q <= 0) || q === 0) return setErro("Quantidade inválida.");
     let custoCent: number | null = null;
-    const custoTexto = custo.trim() || (ultimoPreco.dados && (tipo === "compra_realizada" || tipo === "compra_planejada") && Number.isFinite(q) ? String((ultimoPreco.dados * q / 100).toFixed(2)) : "");
+    const custoTexto = custo.trim();
     if (custoTexto) {
       const c = lerNumero(custoTexto) as number;
       if (!Number.isFinite(c) || c < 0) return setErro("Valor inválido.");
@@ -181,8 +181,11 @@ export function NovoMovimento({ itemId, tipo: tipoInicial }: { itemId?: string; 
       {quando === "outro" && <Campo rotulo="Dia" value={data} onChangeText={(t) => setData(mascaraData(t))} keyboardType="number-pad" placeholder="dia/mês/ano" />}
       {(tipo === "compra_planejada" || tipo === "compra_realizada") && (
         <Campo rotulo="Valor total (R$)" value={custo} onChangeText={setCusto} keyboardType="decimal-pad"
-          placeholder={ultimoPreco.dados && lerNumero(quantidade) ? `Igual da última vez: ${reais(Math.round(ultimoPreco.dados * (lerNumero(quantidade) as number)))}` : "Ex.: 240,00"}
-          dica={ultimoPreco.dados ? "Se deixar em branco, usa o preço da última compra." : undefined} />
+          placeholder="Ex.: 240,00" />
+      )}
+      {(tipo === "compra_planejada" || tipo === "compra_realizada") && !custo && ultimoPreco.dados && (lerNumero(quantidade) ?? 0) > 0 && (
+        <Botao titulo={`Mesmo preço da última vez: ${reais(Math.round(ultimoPreco.dados * (lerNumero(quantidade) as number)))}`} tipo="leve"
+          onPress={() => setCusto((ultimoPreco.dados! * (lerNumero(quantidade) as number) / 100).toFixed(2).replace(".", ","))} />
       )}
       {tipo === "consumo" && (
         <Escolha rotulo="Animal (opcional)" permitirVazio valor={animal} aoEscolher={setAnimal}

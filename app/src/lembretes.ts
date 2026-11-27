@@ -63,14 +63,33 @@ export function horariosDeHoje(l: Lembrete, hoje = hojeISO()): string[] {
   return [...l.horarios].sort();
 }
 
-type Aviso = { quando: Date | null; gatilho: Notifications.NotificationTriggerInput; titulo: string; corpo: string; dados: Record<string, unknown> };
+type Aviso = { id: string; quando: Date | null; prioridade: number; gatilho: Notifications.NotificationTriggerInput; titulo: string; corpo: string; dados: Record<string, unknown> };
+export type ResultadoSync = { agendados: number; total: number; permitido: boolean };
 
-/** Recria todos os avisos do celular a partir dos lembretes guardados. Chame ao abrir o app e depois de mudar um lembrete. */
-export async function sincronizarLembretes(): Promise<{ agendados: number; permitido: boolean }> {
-  if (!temDespertador) return { agendados: 0, permitido: false };
+// Uma sincronização por vez: pedidos que chegam no meio viram uma só, logo depois
+let rodando: Promise<ResultadoSync> | null = null;
+let pendente = false;
+export function sincronizarLembretes(): Promise<ResultadoSync> {
+  if (!temDespertador) return Promise.resolve({ agendados: 0, total: 0, permitido: false });
+  if (rodando) { pendente = true; return rodando; }
+  rodando = (async () => {
+    let r: ResultadoSync;
+    do { pendente = false; r = await sincronizarAgora(); } while (pendente);
+    return r;
+  })().finally(() => { rodando = null; });
+  return rodando;
+}
+
+/** Ao sair da conta: apaga os avisos deste celular */
+export async function limparAvisos() {
+  if (!temDespertador) return;
+  try { await Notifications.cancelAllScheduledNotificationsAsync(); } catch { /* ignora */ }
+}
+
+async function sincronizarAgora(): Promise<ResultadoSync> {
   await configurar();
   const perm = await Notifications.getPermissionsAsync();
-  if (!perm.granted) return { agendados: 0, permitido: false };
+  if (!perm.granted) return { agendados: 0, total: 0, permitido: false };
 
   const hoje = hojeISO();
   const [{ data: lembretes }, { data: previsao }, { data: tarefas }] = await Promise.all([
@@ -89,9 +108,10 @@ export async function sincronizarLembretes(): Promise<{ agendados: number; permi
       const p = (previsao ?? []).find((x: any) => x.item_id === l.stock_item_id);
       if (!p?.acaba_em) continue;
       const dia = somarDias(p.acaba_em, -Math.max(l.antecedencia_dias || 3, 0));
-      const quando = dataHora(dia < hoje ? hoje : dia, l.horarios[0] ?? "08:00");
-      if (quando <= agora) quando.setTime(agora.getTime() + 60_000 * 60); // já está perto: avisa daqui a 1 hora
-      avisos.push({ quando, gatilho: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: quando, ...canal },
+      if (dia < hoje) continue; // já passou: o aviso fica em vermelho na Agenda, sem tocar de novo
+      const quando = dataHora(dia, l.horarios[0] ?? "08:00");
+      if (quando <= agora) continue;
+      avisos.push({ id: `${l.id}|${dia}`, quando, prioridade: 2, gatilho: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: quando, ...canal },
         titulo: `Comprar ${p.nome}`, corpo: `Deve acabar perto de ${p.acaba_em.split("-").reverse().join("/")}.`, dados });
       continue;
     }
@@ -101,18 +121,18 @@ export async function sincronizarLembretes(): Promise<{ agendados: number; permi
       const dia = somarDias(t.proxima_data, -(l.antecedencia_dias || 0));
       const quando = dataHora(dia, l.horarios[0] ?? "07:00");
       if (quando <= agora) continue;
-      avisos.push({ quando, gatilho: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: quando, ...canal },
-        titulo: l.titulo, corpo: l.antecedencia_dias ? `Daqui a ${l.antecedencia_dias} dia(s).` : `Hoje${quem}.`, dados });
+      avisos.push({ id: `${l.id}|${dia}`, quando, prioridade: 1, gatilho: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: quando, ...canal },
+        titulo: l.titulo, corpo: l.antecedencia_dias ? `Daqui a ${l.antecedencia_dias} dia(s)${quem}.` : `Hoje${quem}.`, dados: { ...dados, dia, antes: l.antecedencia_dias > 0 } });
       continue;
     }
     const corpo = `${l.tipo === "remedio" ? "Conforme a receita do veterinário" : "Toque para marcar como feito"}${quem}.`;
     const semFim = !l.data_fim && l.data_inicio <= hoje;
     for (const h of l.horarios) {
       if (semFim && !l.dias_semana?.length) {
-        avisos.push({ quando: null, gatilho: { type: Notifications.SchedulableTriggerInputTypes.DAILY, ...hm(h), ...canal }, titulo: l.titulo, corpo, dados: { ...dados, horario: h } });
+        avisos.push({ id: `${l.id}|${h}|d`, quando: null, prioridade: l.tipo === "remedio" ? 0 : 1, gatilho: { type: Notifications.SchedulableTriggerInputTypes.DAILY, ...hm(h), ...canal }, titulo: l.titulo, corpo, dados: { ...dados, horario: h } });
       } else if (semFim) {
         for (const d of l.dias_semana!) {
-          avisos.push({ quando: null, gatilho: { type: Notifications.SchedulableTriggerInputTypes.WEEKLY, weekday: d + 1, ...hm(h), ...canal }, titulo: l.titulo, corpo, dados: { ...dados, horario: h } });
+          avisos.push({ id: `${l.id}|${h}|w${d}`, quando: null, prioridade: l.tipo === "remedio" ? 0 : 1, gatilho: { type: Notifications.SchedulableTriggerInputTypes.WEEKLY, weekday: d + 1, ...hm(h), ...canal }, titulo: l.titulo, corpo, dados: { ...dados, horario: h } });
         }
       } else {
         // com data de início/fim (ex.: remédio por 7 dias): um aviso por dia nos próximos 14 dias
@@ -122,31 +142,42 @@ export async function sincronizarLembretes(): Promise<{ agendados: number; permi
           if (l.dias_semana?.length && !l.dias_semana.includes(deISO(dia).getDay())) continue;
           const quando = dataHora(dia, h);
           if (quando <= agora) continue;
-          avisos.push({ quando, gatilho: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: quando, ...canal }, titulo: l.titulo, corpo, dados: { ...dados, horario: h } });
+          avisos.push({ id: `${l.id}|${h}|${dia}`, quando, prioridade: l.tipo === "remedio" ? 0 : 1, gatilho: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: quando, ...canal }, titulo: l.titulo, corpo, dados: { ...dados, horario: h, dia } });
         }
       }
     }
   }
 
-  // os repetidos (diário/semanal) primeiro, depois as datas mais próximas
-  avisos.sort((a, b) => (a.quando ? a.quando.getTime() : 0) - (b.quando ? b.quando.getTime() : 0));
+  // remédio primeiro; depois o que toca nas próximas 48 horas; depois o resto pela data
+  const em48h = agora.getTime() + 48 * 3600_000;
+  const peso = (a: Aviso) => a.prioridade * 10 + (a.quando && a.quando.getTime() > em48h ? 5 : 0);
+  avisos.sort((a, b) => peso(a) - peso(b) || (a.quando?.getTime() ?? 0) - (b.quando?.getTime() ?? 0));
+  const escolhidos = avisos.slice(0, LIMITE);
   await Notifications.cancelAllScheduledNotificationsAsync();
   let n = 0;
-  for (const a of avisos.slice(0, LIMITE)) {
+  for (const a of escolhidos) {
     try {
-      await Notifications.scheduleNotificationAsync({ content: { title: a.titulo, body: a.corpo, data: a.dados, sound: "default" }, trigger: a.gatilho });
+      await Notifications.scheduleNotificationAsync({ identifier: a.id, content: { title: a.titulo, body: a.corpo, data: a.dados, sound: "default" }, trigger: a.gatilho });
       n++;
     } catch (e) { console.warn("aviso", e); }
   }
-  return { agendados: n, permitido: true };
+  return { agendados: n, total: avisos.length, permitido: true };
 }
 
 /** Ouve o toque no aviso e chama abrir(lembreteId, horario). Devolve a função para parar de ouvir. */
-export function ouvirToques(abrir: (lembreteId: string, horario: string, tipo: string) => void) {
+export function ouvirToques(abrir: (lembreteId: string, horario: string, dia: string, antes: boolean) => void) {
   if (!temDespertador) return () => {};
   const tratar = (r: Notifications.NotificationResponse | null) => {
     const d: any = r?.notification.request.content.data;
-    if (d?.lembrete_id) abrir(String(d.lembrete_id), String(d.horario ?? ""), String(d.tipo ?? ""));
+    if (!d?.lembrete_id) return;
+    // aviso diário sem data: se a hora dele ainda não chegou hoje, é o de ontem
+    let dia = typeof d.dia === "string" ? d.dia : hojeISO();
+    if (typeof d.dia !== "string" && d.horario) {
+      const agora = new Date();
+      const hhmm = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
+      if (String(d.horario) > hhmm) dia = somarDias(hojeISO(), -1);
+    }
+    abrir(String(d.lembrete_id), String(d.horario ?? ""), dia, !!d.antes);
   };
   Notifications.getLastNotificationResponseAsync().then((r) => { tratar(r); Notifications.clearLastNotificationResponseAsync?.(); }).catch(() => {});
   const sub = Notifications.addNotificationResponseReceivedListener(tratar);

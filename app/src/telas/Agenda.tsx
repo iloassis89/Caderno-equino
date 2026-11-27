@@ -26,8 +26,8 @@ export async function concluirTarefa(t: any): Promise<{ erro?: string; prox?: st
   return { prox };
 }
 
-export async function marcarLembrete(id: string, horario: string) {
-  const { data, error } = await supabase.rpc("marcar_lembrete_feito", { p_lembrete: id, p_horario: horario });
+export async function marcarLembrete(id: string, horario: string, dia = hojeISO()) {
+  const { data, error } = await supabase.rpc("marcar_lembrete_feito", { p_lembrete: id, p_horario: horario, p_dia: dia });
   if (error) return { erro: mensagemErro(error) };
   const r = (data as any[])?.[0];
   if (r?.proxima) sincronizarLembretes().catch(() => {});
@@ -40,6 +40,8 @@ export function ParaFazerHoje({ aoMudar }: { aoMudar?: () => void }) {
   const hoje = hojeISO();
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [desfazer, setDesfazer] = useState<null | (() => Promise<void>)>(null);
+  useEffect(() => { if (!desfazer) return; const t = setTimeout(() => setDesfazer(null), 12000); return () => clearTimeout(t); }, [desfazer]);
   const dados = useCarga(async () => {
     const [l, f, t, p] = await Promise.all([
       supabase.from("lembretes").select("*, animals(nome)").eq("ativo", true),
@@ -56,9 +58,21 @@ export function ParaFazerHoje({ aoMudar }: { aoMudar?: () => void }) {
   async function tocarLembrete(id: string, h: string) {
     if (ocupado) return;
     setOcupado(`${id}|${h}`); setMsg(null);
-    const r = await marcarLembrete(id, h);
+    const r = await marcarLembrete(id, h, hoje);
     setOcupado(null);
     if (r.erro) return setMsg(r.erro);
+    setMsg("Marcado como feito.");
+    setDesfazer(() => async () => {
+      await supabase.rpc("desfazer_lembrete_feito", { p_lembrete: id, p_horario: h, p_dia: hoje });
+      setMsg(null); dados.recarregar(); aoMudar?.();
+    });
+    dados.recarregar(); aoMudar?.();
+  }
+  async function desmarcarLembrete(id: string, h: string) {
+    if (ocupado) return;
+    setOcupado(`${id}|${h}`);
+    await supabase.rpc("desfazer_lembrete_feito", { p_lembrete: id, p_horario: h, p_dia: hoje });
+    setOcupado(null); setMsg("Desmarcado."); setDesfazer(null);
     dados.recarregar(); aoMudar?.();
   }
   async function tocarTarefa(t: any) {
@@ -68,6 +82,13 @@ export function ParaFazerHoje({ aoMudar }: { aoMudar?: () => void }) {
     setOcupado(null);
     if (r.erro) return setMsg(r.erro);
     setMsg(`"${t.titulo}" feita.${r.prox ? ` Próxima: ${br(r.prox)}.` : ""}`);
+    setDesfazer(() => async () => {
+      // volta a data e o "ativo" de antes e apaga a execução de hoje
+      await supabase.from("task_runs").delete().eq("task_id", t.id).eq("data", hoje);
+      await supabase.from("tasks").update({ proxima_data: t.proxima_data, ativo: true }).eq("id", t.id);
+      sincronizarLembretes().catch(() => {});
+      setMsg(null); dados.recarregar(); aoMudar?.();
+    });
     dados.recarregar(); aoMudar?.();
   }
 
@@ -78,7 +99,14 @@ export function ParaFazerHoje({ aoMudar }: { aoMudar?: () => void }) {
   return (
     <View>
       <Cabecalho texto="Para fazer hoje" />
-      <Aviso texto={msg} tipo={msg?.includes("feita") ? "ok" : "erro"} />
+      {msg && (
+        <Cartao style={{ backgroundColor: msg.includes("feit") || msg.includes("Desmarcado") ? cor.mataClara : cor.barroClaro, paddingVertical: 10 }}>
+          <View style={[est.linha, { gap: 10 }]}>
+            <Text style={[est.texto, { flex: 1 }]}>{msg}</Text>
+            {desfazer && <Botao titulo="Desfazer" tipo="leve" icone="undo" style={{ marginTop: 0, minHeight: 48 }} onPress={async () => { const f = desfazer; setDesfazer(null); await f(); }} />}
+          </View>
+        </Cartao>
+      )}
       {nada ? (
         <Cartao>
           <Text style={est.texto}>Nada marcado para hoje.</Text>
@@ -87,7 +115,8 @@ export function ParaFazerHoje({ aoMudar }: { aoMudar?: () => void }) {
       ) : null}
       {d.itens.map(({ lb, h, feito }) => (
         <LinhaCaixa key={`${lb.id}|${h}`} marcado={feito} ocupado={ocupado === `${lb.id}|${h}`} icone={iconeLembrete(lb.tipo)}
-          titulo={`${h} · ${lb.titulo}`} sub={lb.animals?.nome ?? undefined} onPress={() => !feito && tocarLembrete(lb.id, h)} />
+          titulo={`${h} · ${lb.titulo}`} sub={feito ? `${lb.animals?.nome ? `${lb.animals.nome} · ` : ""}feito (toque para desmarcar)` : lb.animals?.nome ?? undefined}
+          onPress={() => (feito ? desmarcarLembrete(lb.id, h) : tocarLembrete(lb.id, h))} />
       ))}
       {d.tarefas.map((t: any) => (
         <LinhaCaixa key={t.id} marcado={false} ocupado={ocupado === t.id} icone="calendar-check" titulo={t.titulo}
@@ -121,9 +150,10 @@ function LinhaCaixa({ marcado, ocupado, icone, titulo, sub, onPress, alerta }: {
 // ---------- Aviso de permissão / site ----------
 function AvisoDespertador() {
   const [permitido, setPermitido] = useState<boolean | null>(null);
+  const [cortados, setCortados] = useState(0);
   useEffect(() => {
     if (!temDespertador) return;
-    sincronizarLembretes().then((r) => setPermitido(r.permitido)).catch(() => setPermitido(false));
+    sincronizarLembretes().then((r) => { setPermitido(r.permitido); setCortados(Math.max(r.total - r.agendados, 0)); }).catch(() => setPermitido(false));
   }, []);
   if (!temDespertador) {
     return (
@@ -133,7 +163,9 @@ function AvisoDespertador() {
       </Cartao>
     );
   }
-  if (permitido !== false) return null;
+  if (permitido !== false) {
+    return cortados > 0 ? <Aviso texto={`O celular guarda até 60 avisos. ${cortados} ficaram de fora por enquanto (os remédios e os mais próximos vêm primeiro). Abra o app todo dia para ele reagendar.`} /> : null;
+  }
   return (
     <Cartao style={{ backgroundColor: cor.ouroClaro }}>
       <Text style={est.texto}>Para o celular tocar na hora, permita os avisos do IAS Horse.</Text>
@@ -266,7 +298,7 @@ function AvisoReposicao({ itemId, nome, lembrete, aoMudar }: { itemId: string; n
       if (lembrete) r = await supabase.from("lembretes").update({ antecedencia_dias: Number(v) }).eq("id", lembrete.id);
       else {
         await pedirPermissao();
-        r = await supabase.from("lembretes").insert({ tipo: "reposicao", titulo: `Comprar ${nome}`, stock_item_id: itemId, horarios: ["08:00"], antecedencia_dias: Number(v) });
+        r = await supabase.from("lembretes").upsert({ tipo: "reposicao", titulo: `Comprar ${nome}`, stock_item_id: itemId, horarios: ["08:00"], antecedencia_dias: Number(v), ativo: true }, { onConflict: "stock_item_id" });
       }
     }
     setOcupado(false);
@@ -295,12 +327,12 @@ const DURACAO: { valor: string; rotulo: string }[] = [
   { valor: "10", rotulo: "10 dias" }, { valor: "14", rotulo: "14 dias" }, { valor: "30", rotulo: "30 dias" }, { valor: "sempre", rotulo: "Sem data para acabar" },
 ];
 
-export function NovoLembrete({ lembrete }: { lembrete?: Lembrete }) {
+export function NovoLembrete({ lembrete, animalId, tipo: tipoInicial }: { lembrete?: Lembrete; animalId?: string; tipo?: string }) {
   const nav = useNav();
   const animais = useCarga(() => carregarAnimais(true));
   const lista = animais.dados ?? [];
-  const [tipo, setTipo] = useState<string | null>(lembrete?.tipo ?? null);
-  const [animal, setAnimal] = useState<string | null>(lembrete?.animal_id ?? null);
+  const [tipo, setTipo] = useState<string | null>(lembrete?.tipo ?? tipoInicial ?? null);
+  const [animal, setAnimal] = useState<string | null>(lembrete?.animal_id ?? animalId ?? null);
   const pronto = !!lembrete && (TITULOS[lembrete.tipo] ?? []).includes(lembrete.titulo);
   const [titulo, setTitulo] = useState<string | null>(pronto ? lembrete!.titulo : null);
   const [outroTitulo, setOutroTitulo] = useState(lembrete && !pronto ? lembrete.titulo : "");
@@ -399,17 +431,18 @@ export function NovaTarefa({ tarefa }: { tarefa?: any }) {
 
   useEffect(() => { if (!animal && !tarefa && lista.length === 1) setAnimal(lista[0].id); }, [lista.length]);
   useEffect(() => {
-    if (avisoAtual.dados !== undefined) {
+    if (!avisoAtual.carregando && !avisoAtual.erro) {
       const l = avisoAtual.dados;
       setAviso(l ? String(l.antecedencia_dias) : temDespertador ? "0" : "nao");
       if (l?.horarios?.length) setHora([l.horarios[0]]);
     }
-  }, [avisoAtual.dados]);
+  }, [avisoAtual.dados, avisoAtual.carregando]);
 
   async function salvar() {
     setErro(null);
     const t = (titulo.trim() || escolhida || "").trim();
     if (!t) return setErro("Escolha ou escreva a tarefa.");
+    if (avisoAtual.carregando || avisoAtual.erro || aviso === null) return setErro("Ainda carregando. Confira a internet e tente de novo.");
     const d = quando === "hoje" ? hojeISO() : quando === "amanha" ? somarDias(hojeISO(), 1) : quando === "7" ? somarDias(hojeISO(), 7) : paraISO(data);
     if (!d) return setErro("Data inválida. Use dia/mês/ano.");
     setSalvando(true);
@@ -420,7 +453,7 @@ export function NovaTarefa({ tarefa }: { tarefa?: any }) {
     const atual = avisoAtual.dados;
     if (aviso && aviso !== "nao") {
       const l = { tipo: "tarefa", titulo: t.slice(0, 120), animal_id: animal, task_id: r.data.id, horarios: [hora[0] ?? "07:00"], antecedencia_dias: Number(aviso) };
-      const w = atual ? await supabase.from("lembretes").update(l).eq("id", atual.id) : await supabase.from("lembretes").insert(l);
+      const w = await supabase.from("lembretes").upsert({ ...l, ativo: true }, { onConflict: "task_id" });
       if (w.error) { setSalvando(false); return setErro(mensagemErro(w.error)); }
       await pedirPermissao();
     } else if (atual) {
@@ -449,7 +482,7 @@ export function NovaTarefa({ tarefa }: { tarefa?: any }) {
         <>
           <Escolha rotulo="Tocar no celular" valor={aviso} aoEscolher={setAviso}
             opcoes={[{ valor: "nao", rotulo: "Não" }, { valor: "0", rotulo: "No dia" }, { valor: "1", rotulo: "1 dia antes" }, { valor: "3", rotulo: "3 dias antes" }]} />
-          {aviso && aviso !== "nao" && <Horarios rotulo="Que horas?" prontos={["06:00", "07:00", "08:00", "12:00", "17:00"]} valores={hora} aoMudar={(v) => setHora(v.slice(-1))} maximo={1} />}
+          {aviso && aviso !== "nao" && <Horarios rotulo="Que horas?" prontos={["06:00", "07:00", "08:00", "12:00", "17:00"]} valores={hora} aoMudar={setHora} maximo={1} />}
         </>
       ) : null}
       <Aviso texto={erro} tipo="erro" />
@@ -470,7 +503,7 @@ export function NovaTarefa({ tarefa }: { tarefa?: any }) {
 }
 
 // ---------- Tela aberta pelo toque no aviso ----------
-export function LembreteFeito({ id, horario }: { id: string; horario: string }) {
+export function LembreteFeito({ id, horario, dia, antes }: { id: string; horario: string; dia?: string; antes?: boolean }) {
   const nav = useNav();
   const [msg, setMsg] = useState<{ t: string; tipo: "ok" | "erro" } | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -481,16 +514,19 @@ export function LembreteFeito({ id, horario }: { id: string; horario: string }) 
     setOcupado(true);
     if (l.tipo === "tarefa" && l.task_id) {
       const { data: t } = await supabase.from("tasks").select("*").eq("id", l.task_id).maybeSingle();
+      if (t && t.proxima_data > hojeISO()) { setOcupado(false); return setMsg({ t: `Ok! A tarefa é dia ${br(t.proxima_data)}. Ela aparece no Início nesse dia.`, tipo: "ok" }); }
       const r = t ? await concluirTarefa(t) : { erro: "Tarefa não encontrada." };
       setOcupado(false);
       return setMsg(r.erro ? { t: r.erro, tipo: "erro" } : { t: "Feito e anotado.", tipo: "ok" });
     }
-    const r = await marcarLembrete(l.id, horario);
+    const r = await marcarLembrete(l.id, horario, dia ?? hojeISO());
     setOcupado(false);
     setMsg(r.erro ? { t: r.erro, tipo: "erro" } : { t: r.ja ? "Já estava marcado como feito." : l.animal_id ? "Feito e anotado no caderno." : "Feito.", tipo: "ok" });
   }
   if (lb.carregando && !l) return <Tela titulo="Lembrete" voltar><Carregando /></Tela>;
+  if (lb.erro && !l) return <Tela titulo="Lembrete" voltar><ErroCarga erro={lb.erro} tentar={lb.recarregar} /></Tela>;
   if (!l) return <Tela titulo="Lembrete" voltar><Vazio texto="Esse lembrete foi apagado." /></Tela>;
+  const soAviso = antes && l.tipo === "tarefa";
   return (
     <Tela titulo="Lembrete" voltar>
       <Cartao>
@@ -498,7 +534,7 @@ export function LembreteFeito({ id, horario }: { id: string; horario: string }) 
           <Icone nome={iconeLembrete(l.tipo)} tamanho={40} cor={cor.mata} />
           <View style={{ flex: 1 }}>
             <Text style={[est.texto, { fontWeight: "700", fontSize: tam.subtitulo }]}>{l.titulo}</Text>
-            <Text style={est.textoSuave}>{[horario, l.animals?.nome].filter(Boolean).join(" · ")}</Text>
+            <Text style={est.textoSuave}>{[dia && dia !== hojeISO() ? `de ${br(dia)}` : null, horario, l.animals?.nome].filter(Boolean).join(" · ")}</Text>
           </View>
         </View>
       </Cartao>
@@ -511,7 +547,7 @@ export function LembreteFeito({ id, horario }: { id: string; horario: string }) 
         </>
       ) : (
         <>
-          <Botao titulo="Feito" icone="check-bold" onPress={feito} carregando={ocupado} style={{ minHeight: 80 }} />
+          <Botao titulo={soAviso ? "Ok, entendi" : "Feito"} icone="check-bold" onPress={soAviso ? () => nav.aba("Agenda") : feito} carregando={ocupado} style={{ minHeight: 80 }} />
           <Botao titulo="Ainda não" tipo="leve" onPress={() => nav.aba("Inicio")} />
           <Aviso texto={msg?.t} tipo="erro" />
         </>

@@ -5,7 +5,7 @@ import { perguntarIA } from "../_shared/ia.ts";
 
 async function ehAdmin(user: any) {
   if (!user?.email || !user.email_confirmed_at) return false;
-  const { data } = await admin.from("admin_emails").select("email").ilike("email", user.email).maybeSingle();
+  const { data } = await admin.from("admin_emails").select("email").eq("email", String(user.email).toLowerCase()).maybeSingle();
   return !!data;
 }
 
