@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Image, Text, View } from "react-native";
+import { Image, Platform, Text, View } from "react-native";
 import { supabase, mensagemErro } from "../supabase";
 import { Aviso, Botao, Campo, Escolha, Tela } from "../ui";
 import { cor, est } from "../tema";
@@ -47,7 +47,7 @@ export default function Entrar() {
   return (
     <Tela titulo="Caderno Equino" subtitulo="O manejo dos seus animais, organizado. Menos papel perdido, mais tempo para você.">
       <View style={{ alignItems: "center", marginVertical: 8 }}>
-        <Image source={require("../../assets/icon.png")} style={{ width: 96, height: 96, borderRadius: 20 }} />
+        <Image source={Platform.OS === "web" ? { uri: "icon-192.png" } : require("../../assets/icon.png")} style={{ width: 96, height: 96, borderRadius: 20 }} />
       </View>
       <Escolha
         opcoes={[{ valor: "entrar", rotulo: "Entrar" }, { valor: "criar", rotulo: "Criar conta" }, { valor: "esqueci", rotulo: "Esqueci a senha" }]}
