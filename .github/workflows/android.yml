@@ -1,0 +1,61 @@
+# Gera o app Android (APK) de graça a cada atualização do código e publica na página de Releases.
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    paths: ["app/**", ".github/workflows/android.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar projeto Android
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Compilar APK
+        working-directory: app/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Renomear
+        run: cp android/app/build/outputs/apk/release/app-release.apk caderno-equino.apk
+
+      - name: Publicar em Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-teste
+          name: Caderno Equino — Android (versão de teste)
+          prerelease: true
+          files: app/caderno-equino.apk
+          body: |
+            Versão de teste do app Android, gerada automaticamente a partir do código.
+            Para instalar: baixe o arquivo caderno-equino.apk no celular Android e permita "instalar apps desta fonte" quando o aparelho pedir.
+            Assinatura de teste: antes da distribuição para clientes, trocar pela chave definitiva do Ilo.
