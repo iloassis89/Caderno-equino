@@ -21,6 +21,7 @@ import { Afiliado, Mais } from "./src/telas/Mais";
 import Assistente from "./src/telas/Assistente";
 import { Admin, AdminAnuncios, AdminCortesias, AdminDicas } from "./src/telas/Admin";
 import { Dicas, Tutorial, tutorialJaVisto } from "./src/conteudo";
+import { AdminConfig, AdminConversa, AdminPedidos, AdminPedidosAnuncio, AdminSuporte, Suporte, SuporteConversa } from "./src/telas/Suporte";
 
 // Cinco abas, sempre com ícone e nome escrito
 const ABAS = [
@@ -59,6 +60,13 @@ function renderizar(r: Rota) {
     case "AdminCortesias": return <AdminCortesias />;
     case "AdminAnuncios": return <AdminAnuncios />;
     case "AdminDicas": return <AdminDicas />;
+    case "Suporte": return <Suporte />;
+    case "SuporteConversa": return <SuporteConversa id={p.id} />;
+    case "AdminSuporte": return <AdminSuporte />;
+    case "AdminConversa": return <AdminConversa id={p.id} />;
+    case "AdminPedidos": return <AdminPedidos />;
+    case "AdminPedidosAnuncio": return <AdminPedidosAnuncio />;
+    case "AdminConfig": return <AdminConfig />;
     default: return <Inicio />;
   }
 }

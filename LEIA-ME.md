@@ -88,3 +88,12 @@ update affiliates set user_id = (select id from auth.users where email = 'email@
 ```
 
 Regra da comissão: 50% da receita líquida (depois da taxa do Stripe/loja) para cada lado; o desconto do cupom sai da metade do influenciador. Vale enquanto o cliente pagar.
+
+## Suporte e avisos por e-mail
+O chat de suporte (Mais → Suporte e atendimento) é particular. A IA tenta resolver; se não der, passa para você, com prazo de 48 horas. Você responde em Administração → Suporte, e a resposta aparece no chat da pessoa.
+
+Para receber os avisos no e-mail (grátis, 300 e-mails por dia no Brevo):
+1. Crie conta em brevo.com com o seu e-mail e confirme o remetente (Senders → adicionar `iloassis88@gmail.com`).
+2. Em SMTP & API → API Keys, gere uma chave.
+3. No Supabase (projeto IAS Horse) → Edge Functions → Secrets, adicione `BREVO_API_KEY` (a chave) e `EMAIL_REMETENTE` (o e-mail confirmado).
+Para trocar o e-mail que recebe os avisos: Administração → Configurações.

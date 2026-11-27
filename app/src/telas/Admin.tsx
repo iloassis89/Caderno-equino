@@ -11,9 +11,13 @@ import { cor, est, tam } from "../tema";
 export function Admin() {
   const nav = useNav();
   const itens = [
+    { t: "Suporte", d: "Responder os clientes", i: "lifebuoy", r: "AdminSuporte" },
+    { t: "Pedidos para autorizar", d: "Parceiros (afiliados) e compras/vendas", i: "clipboard-check-outline", r: "AdminPedidos" },
+    { t: "Vendas de anúncio", d: "Reservas e fila de espera", i: "cash-register", r: "AdminPedidosAnuncio" },
     { t: "Liberar acesso grátis", d: "Dar um plano pago de presente para alguém", i: "gift-outline", r: "AdminCortesias" },
     { t: "Anúncios", d: "Espaço publicitário que você vende", i: "bullhorn-outline", r: "AdminAnuncios" },
     { t: "Dicas", d: "Dicas que aparecem para todos", i: "lightbulb-on-outline", r: "AdminDicas" },
+    { t: "Configurações", d: "E-mail de avisos, administradores e preços", i: "cog-outline", r: "AdminConfig" },
   ];
   return (
     <Tela titulo="Administração" voltar subtitulo="Só você vê esta área.">

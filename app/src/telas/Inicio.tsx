@@ -12,15 +12,16 @@ export default function Inicio() {
   const nav = useNav();
   const { dados, carregando, erro, recarregar } = useCarga(async () => {
     const hoje = hojeISO();
-    const [plano, pendencias, tarefas, perfil] = await Promise.all([
+    const [plano, pendencias, tarefas, perfil, suporte] = await Promise.all([
       carregarPlano(),
       supabase.from("records").select("*, animals(nome)")
         .in("status", ["a_confirmar", "avaliacao_veterinaria"]).order("data", { ascending: false }).limit(20),
       supabase.from("tasks").select("id,titulo,proxima_data,animals(nome)").eq("ativo", true)
         .lte("proxima_data", somarDias(hoje, 3)).order("proxima_data").limit(10),
       supabase.from("profiles").select("nome").maybeSingle(),
+      supabase.from("suporte_conversas").select("id").eq("nao_lida_usuario", true).order("updated_at", { ascending: false }).limit(5),
     ]);
-    return { plano, pendencias: ok(pendencias) ?? [], tarefas: ok(tarefas) ?? [], nome: (perfil.data?.nome as string | null) ?? null, hoje };
+    return { suporte: (suporte.data ?? []) as { id: string }[], plano, pendencias: ok(pendencias) ?? [], tarefas: ok(tarefas) ?? [], nome: (perfil.data?.nome as string | null) ?? null, hoje };
   });
 
   if (erro && !dados) return <Tela titulo="Início"><ErroCarga erro={erro} tentar={recarregar} /></Tela>;
@@ -33,6 +34,14 @@ export default function Inicio() {
 
   return (
     <Tela titulo={primeiroNome ? `Olá, ${primeiroNome}` : "Olá"} subtitulo={`Plano ${d.plano?.nome ?? "Gratuito"} · ${total} de ${d.plano?.max_animais ?? 1} animal(is)`}>
+      {d.suporte.length > 0 && (
+        <Cartao style={{ backgroundColor: cor.couroClaro }} onPress={() => d.suporte.length === 1 ? nav.ir("SuporteConversa", { id: d.suporte[0].id }) : nav.ir("Suporte")}>
+          <View style={[est.linha, { gap: 12 }]}>
+            <Icone nome="message-reply-text-outline" tamanho={30} cor={cor.couro} />
+            <Text style={[est.texto, { flex: 1, fontWeight: "700" }]}>Chegou resposta do suporte. Toque para ler.</Text>
+          </View>
+        </Cartao>
+      )}
       {total === 0 ? (
         <Cartao style={{ backgroundColor: cor.mataClara }}>
           <Text style={[est.texto, { fontWeight: "700" }]}>Comece cadastrando seu animal.</Text>

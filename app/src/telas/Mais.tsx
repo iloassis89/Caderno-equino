@@ -16,6 +16,7 @@ export function Mais() {
     return { email: u.user?.email, afiliado: !!af };
   });
   const itens = [
+    { t: "Suporte e atendimento", i: "lifebuoy", r: "Suporte" },
     { t: "Estoque e compras", i: "package-variant-closed", r: "Estoque" },
     { t: "Tarefas", i: "calendar-check", r: "Tarefas" },
     { t: "Resumo da semana", i: "file-chart-outline", r: "Resumo" },
