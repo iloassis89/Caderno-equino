@@ -11,15 +11,17 @@ import { cor } from "./src/tema";
 import Entrar, { NovaSenha } from "./src/telas/Entrar";
 import Inicio from "./src/telas/Inicio";
 import { Animais, NovoAnimal } from "./src/telas/Animais";
-import { Documentos, Ficha, Historico, NovoRegistro } from "./src/telas/Registros";
+import { Documentos, Ficha, FotosAnotacao, Historico, NovoRegistro } from "./src/telas/Registros";
 import { Estoque, NovoItem, NovoMovimento } from "./src/telas/Estoque";
-import { NovaTarefa, Tarefas } from "./src/telas/Tarefas";
+import { Agenda, LembreteFeito, NovaTarefa, NovoLembrete } from "./src/telas/Agenda";
+import MinhaIA from "./src/telas/MinhaIA";
+import { ouvirToques, sincronizarLembretes } from "./src/lembretes";
 import Resumo from "./src/telas/Resumo";
 import Planos from "./src/telas/Planos";
 import Dieta from "./src/telas/Dieta";
-import { Afiliado, Mais } from "./src/telas/Mais";
+import { Afiliado, Ajuda, Mais } from "./src/telas/Mais";
 import Assistente from "./src/telas/Assistente";
-import { Admin, AdminAnuncios, AdminCortesias, AdminDicas } from "./src/telas/Admin";
+import { Admin, AdminAnuncios, AdminCortesias, AdminDiagnostico, AdminDicas } from "./src/telas/Admin";
 import { Dicas, Tutorial, tutorialJaVisto } from "./src/conteudo";
 import { AdminConfig, AdminConversa, AdminPedidos, AdminPedidosAnuncio, AdminSuporte, Suporte, SuporteConversa } from "./src/telas/Suporte";
 
@@ -28,7 +30,7 @@ const ABAS = [
   { nome: "Inicio", rotulo: "Início", icone: "home-outline" },
   { nome: "Animais", rotulo: "Animais", icone: "horse-variant" },
   { nome: "Anotar", rotulo: "Anotar", icone: "plus-circle", destaque: true },
-  { nome: "Historico", rotulo: "Histórico", icone: "book-open-variant" },
+  { nome: "Agenda", rotulo: "Agenda", icone: "bell-outline" },
   { nome: "Mais", rotulo: "Mais", icone: "dots-horizontal-circle-outline" },
 ];
 
@@ -47,8 +49,13 @@ function renderizar(r: Rota) {
     case "Estoque": return <Estoque />;
     case "NovoItem": return <NovoItem />;
     case "NovoMovimento": return <NovoMovimento itemId={p.itemId} />;
-    case "Tarefas": return <Tarefas />;
-    case "NovaTarefa": return <NovaTarefa />;
+    case "Tarefas": case "Agenda": return <Agenda />;
+    case "NovaTarefa": return <NovaTarefa tarefa={p.tarefa} />;
+    case "NovoLembrete": return <NovoLembrete lembrete={p.lembrete} />;
+    case "LembreteFeito": return <LembreteFeito id={p.id} horario={p.horario ?? ""} />;
+    case "FotosAnotacao": return <FotosAnotacao recordId={p.recordId} animalId={p.animalId} />;
+    case "Ajuda": return <Ajuda />;
+    case "MinhaIA": return <MinhaIA />;
     case "Resumo": return <Resumo />;
     case "Planos": return <Planos retorno={p.retorno} />;
     case "Mais": return <Mais />;
@@ -67,6 +74,7 @@ function renderizar(r: Rota) {
     case "AdminPedidos": return <AdminPedidos />;
     case "AdminPedidosAnuncio": return <AdminPedidosAnuncio />;
     case "AdminConfig": return <AdminConfig />;
+    case "AdminDiagnostico": return <AdminDiagnostico />;
     default: return <Inicio />;
   }
 }
@@ -113,6 +121,16 @@ export default function App() {
   // Primeira vez no app: mostra o tutorial
   const logado = !!sessao;
   useEffect(() => { if (logado) tutorialJaVisto().then((visto) => setMostrarTutorial(!visto)); }, [logado]);
+
+  // Despertadores: reagenda ao entrar e abre o "Feito" quando a pessoa toca no aviso
+  useEffect(() => {
+    if (!logado) return;
+    sincronizarLembretes().catch(() => {});
+    return ouvirToques((id, horario) => {
+      setPilha([{ nome: "Inicio" }, { nome: "LembreteFeito", params: { id, horario } }]);
+      setVersao((v) => v + 1);
+    });
+  }, [logado]);
 
   // Volta do Stripe: abre a tela de planos com a mensagem certa
   useEffect(() => {
@@ -195,10 +213,11 @@ export default function App() {
                       <Pressable key={a.nome} onPress={() => nav.aba(a.nome)} accessibilityRole="tab" accessibilityLabel={a.rotulo}
                         accessibilityState={{ selected: ativa }}
                         style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 6, minHeight: 64 }}>
-                        <View style={a.destaque ? { backgroundColor: ativa ? cor.couro : cor.mata, borderRadius: 26, width: 52, height: 40, alignItems: "center", justifyContent: "center" } : undefined}>
-                          <Icone nome={a.icone} tamanho={a.destaque ? 30 : 28} cor={c} />
+                        <View style={a.destaque ? { backgroundColor: cor.mata, borderRadius: 22, width: 56, height: 44, alignItems: "center", justifyContent: "center" }
+                          : { backgroundColor: ativa ? cor.mataClara : "transparent", borderRadius: 16, width: 64, height: 32, alignItems: "center", justifyContent: "center" }}>
+                          <Icone nome={a.icone} tamanho={a.destaque ? 30 : 26} cor={c} />
                         </View>
-                        <Text style={{ fontSize: 14, color: ativa || a.destaque ? cor.mata : cor.tintaSuave, fontWeight: ativa ? "700" : "500", marginTop: 2 }}>{a.rotulo}</Text>
+                        <Text style={{ fontSize: 15, color: ativa || a.destaque ? cor.mata : cor.tintaSuave, fontWeight: ativa ? "700" : "500", marginTop: 2 }}>{a.rotulo}</Text>
                       </Pressable>
                     );
                   })}

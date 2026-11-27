@@ -1,7 +1,7 @@
 // Painel do dono do app: liberar acesso grátis, anúncios e dicas
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Image, Platform, Pressable, Text, View } from "react-native";
-import { supabase, mensagemErro } from "../supabase";
+import { chamarFuncao, supabase, mensagemErro } from "../supabase";
 import { ok, useCarga } from "../dados";
 import { BotoesAnexar } from "../anexos";
 import { Aviso, Botao, BotaoConfirmar, Cabecalho, Campo, Carregando, Cartao, ErroCarga, Escolha, Icone, Tela, Vazio, useNav } from "../ui";
@@ -20,6 +20,7 @@ export function Admin() {
     { t: "Anúncios", d: "Espaço publicitário que você vende", i: "bullhorn-outline", r: "AdminAnuncios" },
     { t: "Dicas", d: "Dicas que aparecem para todos", i: "lightbulb-on-outline", r: "AdminDicas" },
     { t: "Configurações", d: "E-mail de avisos, administradores e preços", i: "cog-outline", r: "AdminConfig" },
+    { t: "Diagnóstico", d: "Ver se as chaves da IA e do e-mail funcionam", i: "stethoscope", r: "AdminDiagnostico" },
   ];
   return (
     <Tela titulo="Administração" voltar subtitulo="Só você vê esta área.">
@@ -262,6 +263,45 @@ export function AdminDicas() {
         </Cartao>
       ))}
       <Aviso texto={msg?.t} tipo={msg?.tipo} />
+    </Tela>
+  );
+}
+
+// ---------- Diagnóstico: chaves configuradas no servidor (sem mostrar as chaves) ----------
+export function AdminDiagnostico() {
+  const [r, setR] = useState<Record<string, any> | null>(null);
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  async function rodar(op: Record<string, boolean>, nome: string) {
+    setOcupado(nome); setErro(null);
+    const { data, erro: e } = await chamarFuncao<Record<string, any>>("diagnostico", op);
+    setOcupado(null);
+    if (e) return setErro(e);
+    setR(data ?? null);
+  }
+  useEffect(() => { rodar({}, "ver"); }, []);
+  const linha = (t: string, okv: any) => (
+    <View key={t} style={[est.entre, { paddingVertical: 8, borderBottomWidth: 1, borderColor: cor.linha }]}>
+      <Text style={[est.texto, { flex: 1 }]}>{t}</Text>
+      <Icone nome={okv ? "check-circle" : "close-circle-outline"} cor={okv ? cor.mata : cor.barro} />
+    </View>
+  );
+  return (
+    <Tela titulo="Diagnóstico" voltar subtitulo="Mostra só se cada chave existe no Supabase. As chaves nunca aparecem aqui.">
+      <Aviso texto={erro} tipo="erro" />
+      {r && (
+        <Cartao>
+          {linha("IA do app (ANTHROPIC_API_KEY)", r.ia_do_app)}
+          {linha("E-mail: chave do Brevo (BREVO_API_KEY)", r.email_brevo || r.email_resend)}
+          {linha("E-mail remetente (EMAIL_REMETENTE)", r.email_remetente)}
+          {linha("Pagamentos (STRIPE_SECRET_KEY)", r.stripe)}
+          {linha("Aviso de pagamento (STRIPE_WEBHOOK_SECRET)", r.stripe_webhook)}
+        </Cartao>
+      )}
+      {r?.teste_ia && <Aviso texto={`Teste da IA: ${r.teste_ia === "ok" ? "funcionou!" : r.teste_ia}`} tipo={r.teste_ia === "ok" ? "ok" : "erro"} />}
+      {r?.teste_email && <Aviso texto={`Teste de e-mail: ${String(r.teste_email).startsWith("ok") ? `funcionou! ${r.teste_email.slice(3)}` : r.teste_email}`} tipo={String(r.teste_email).startsWith("ok") ? "ok" : "erro"} />}
+      <Botao titulo="Testar a IA" icone="robot-outline" onPress={() => rodar({ testar_ia: true }, "ia")} carregando={ocupado === "ia"} />
+      <Botao titulo="Mandar e-mail de teste" icone="email-fast-outline" tipo="leve" onPress={() => rodar({ testar_email: true }, "email")} carregando={ocupado === "email"} />
     </Tela>
   );
 }

@@ -52,6 +52,12 @@
           "cameraPermission": "O IAS Horse usa a câmera para fotografar o animal e os documentos dele.",
           "photosPermission": "O IAS Horse usa a galeria para escolher fotos do animal e dos documentos."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#2F4B2C"
+        }
       ]
     ]
   }

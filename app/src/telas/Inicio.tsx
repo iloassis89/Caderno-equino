@@ -3,10 +3,11 @@ import { Text, View } from "react-native";
 import { supabase } from "../supabase";
 import { carregarPlano, ok, useCarga } from "../dados";
 import { Botao, Cabecalho, Carregando, Cartao, ErroCarga, Icone, Rotulado, Selo, Tela, Vazio, useNav } from "../ui";
-import { br, hojeISO, somarDias } from "../datas";
+import { br, hojeISO, quando, somarDias } from "../datas";
+import { ParaFazerHoje } from "./Agenda";
 import { rotuloCategoria } from "../constantes";
 import { cor, est } from "../tema";
-import { Anuncio, AtalhoAssistente, DicaDoDia } from "../conteudo";
+import { Anuncio, DicaDoDia } from "../conteudo";
 
 export default function Inicio() {
   const nav = useNav();
@@ -17,7 +18,7 @@ export default function Inicio() {
       supabase.from("records").select("*, animals(nome)")
         .in("status", ["a_confirmar", "avaliacao_veterinaria"]).order("data", { ascending: false }).limit(20),
       supabase.from("tasks").select("id,titulo,proxima_data,animals(nome)").eq("ativo", true)
-        .lte("proxima_data", somarDias(hoje, 3)).order("proxima_data").limit(10),
+        .gt("proxima_data", hoje).lte("proxima_data", somarDias(hoje, 7)).order("proxima_data").limit(10),
       supabase.from("profiles").select("nome").maybeSingle(),
       supabase.auth.getUser().then(({ data: u }) => supabase.from("suporte_conversas").select("id").eq("user_id", u.user?.id ?? "").eq("nao_lida_usuario", true).order("updated_at", { ascending: false }).limit(5)),
     ]);
@@ -33,7 +34,7 @@ export default function Inicio() {
   const primeiroNome = d.nome?.split(" ")[0];
 
   return (
-    <Tela titulo={primeiroNome ? `Olá, ${primeiroNome}` : "Olá"} subtitulo={`Plano ${d.plano?.nome ?? "Gratuito"} · ${total} de ${d.plano?.max_animais ?? 1} animal(is)`}>
+    <Tela titulo={primeiroNome ? `Olá, ${primeiroNome}` : "Olá"}>
       {d.suporte.length > 0 && (
         <Cartao style={{ backgroundColor: cor.couroClaro }} onPress={() => d.suporte.length === 1 ? nav.ir("SuporteConversa", { id: d.suporte[0].id }) : nav.ir("Suporte")}>
           <View style={[est.linha, { gap: 12 }]}>
@@ -48,7 +49,7 @@ export default function Inicio() {
           <Botao titulo="Cadastrar animal" icone="plus-circle" onPress={() => nav.ir("NovoAnimal")} />
         </Cartao>
       ) : (
-        <Botao titulo="Anotar agora" icone="notebook-edit-outline" onPress={() => nav.aba("Anotar")} style={{ minHeight: 72 }} />
+        <Botao titulo="Anotar" icone="notebook-edit-outline" onPress={() => nav.aba("Anotar")} style={{ minHeight: 72 }} />
       )}
 
       {vet.length > 0 && (
@@ -58,20 +59,22 @@ export default function Inicio() {
         </>
       )}
 
-      <Cabecalho texto="Tarefas de hoje e dos próximos dias" />
-      {d.tarefas.length === 0 ? <Vazio texto="Nenhuma tarefa marcada." /> : d.tarefas.map((t: any) => (
-        <Cartao key={t.id} onPress={() => nav.ir("Tarefas")}>
-          <View style={[est.linha, { gap: 10 }]}>
-            <Icone nome="calendar-check" cor={t.proxima_data < d.hoje ? cor.barro : cor.mata} tamanho={28} />
-            <View style={{ flex: 1 }}>
-              <Text style={[est.texto, { fontWeight: "700" }]}>{t.titulo}</Text>
-              <Text style={{ color: t.proxima_data < d.hoje ? cor.barro : cor.tintaSuave, fontSize: 16 }}>
-                {t.proxima_data < d.hoje ? "Atrasada · " : ""}{br(t.proxima_data)}{t.animals?.nome ? ` · ${t.animals.nome}` : ""}
-              </Text>
-            </View>
-          </View>
-        </Cartao>
-      ))}
+      {total > 0 && <ParaFazerHoje aoMudar={recarregar} />}
+
+      {d.tarefas.length > 0 && (
+        <>
+          <Cabecalho texto="Próximos dias" />
+          {d.tarefas.map((t: any) => (
+            <Cartao key={t.id} onPress={() => nav.aba("Agenda")}>
+              <View style={[est.linha, { gap: 10 }]}>
+                <Icone nome="calendar-check" cor={cor.mata} tamanho={26} />
+                <Text style={[est.texto, { flex: 1 }]} numberOfLines={2}>{t.titulo}</Text>
+                <Text style={[est.textoSuave, { fontWeight: "700" }]}>{quando(t.proxima_data)}</Text>
+              </View>
+            </Cartao>
+          ))}
+        </>
+      )}
 
       {confirmar.length > 0 && (
         <>
@@ -83,25 +86,8 @@ export default function Inicio() {
       <View style={{ height: 14 }} />
       <DicaDoDia />
 
-      <Cabecalho texto="Atalhos" />
-      <View style={{ flexDirection: "row", gap: 10 }}>
-        <Atalho icone="package-variant-closed" texto="Estoque" onPress={() => nav.ir("Estoque")} />
-        <Atalho icone="calendar-check" texto="Tarefas" onPress={() => nav.ir("Tarefas")} />
-        <Atalho icone="file-chart-outline" texto="Resumo da semana" onPress={() => nav.ir("Resumo")} />
-      </View>
-      <View style={{ height: 12 }} />
-      <AtalhoAssistente />
       <Anuncio />
     </Tela>
-  );
-}
-
-function Atalho({ icone, texto, onPress }: { icone: string; texto: string; onPress: () => void }) {
-  return (
-    <Cartao onPress={onPress} style={{ flex: 1, alignItems: "center", paddingVertical: 14, marginBottom: 0 }}>
-      <Icone nome={icone} tamanho={34} cor={cor.mata} />
-      <Text style={[est.textoSuave, { textAlign: "center", marginTop: 4, fontWeight: "700", color: cor.tinta }]}>{texto}</Text>
-    </Cartao>
   );
 }
 
@@ -109,13 +95,13 @@ function ItemPendencia({ p }: { p: any }) {
   const nav = useNav();
   return (
     <Cartao onPress={() => nav.ir("NovoRegistro", { registro: p })}>
-      <Text style={[est.texto, { fontWeight: "700" }]}>{p.animals?.nome} · {rotuloCategoria(p.categoria)}</Text>
-      <Text style={est.textoSuave}>{br(p.data)}</Text>
-      <View style={{ marginVertical: 6 }}><Selo status={p.status} /></View>
-      <Text style={est.texto}>{p.descricao}</Text>
-      <Rotulado rotulo="O que decidir" valor={p.decisao_necessaria} />
-      <Rotulado rotulo="Próximo passo" valor={p.proximo_passo} />
-      <Text style={[est.textoSuave, { marginTop: 6, color: cor.couro, fontWeight: "700" }]}>Toque para atualizar a situação</Text>
+      <View style={[est.entre, { gap: 8 }]}>
+        <Text style={[est.texto, { fontWeight: "700", flex: 1 }]}>{p.animals?.nome} · {rotuloCategoria(p.categoria)}</Text>
+        <Icone nome="chevron-right" cor={cor.tintaSuave} />
+      </View>
+      <Text style={est.textoSuave}>{quando(p.data)}</Text>
+      <Text style={est.texto} numberOfLines={3}>{p.descricao}</Text>
+
     </Cartao>
   );
 }

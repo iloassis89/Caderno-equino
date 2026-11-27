@@ -12,19 +12,25 @@ const esc = (s: any) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp
 
 export async function dadosDoAnimal(animalId: string, dias = 30) {
   const desde = somarDias(hojeISO(), -dias);
-  const [a, r, med, an, di] = await Promise.all([
+  const [a, r, med, an, di, cuid] = await Promise.all([
     supabase.from("animals").select("*").eq("id", animalId).single(),
     supabase.from("records").select("*").eq("animal_id", animalId).gte("data", desde).order("data", { ascending: false }).order("created_at", { ascending: false }),
     supabase.from("records").select("data,peso_kg,escore_corporal,medidas").eq("animal_id", animalId).eq("status", "realizado")
       .or("peso_kg.not.is.null,escore_corporal.not.is.null").order("data", { ascending: false }).limit(6),
     supabase.from("anexos").select("tipo,caminho,nome,mime").eq("animal_id", animalId).in("tipo", ["registro", "foto_animal"]).order("created_at", { ascending: false }),
     supabase.from("dieta_itens").select("*").eq("animal_id", animalId).eq("ativo", true).order("created_at"),
+    // último cuidado de cada tipo, mesmo fora do período (o que o veterinário mais pergunta)
+    supabase.from("records").select("data,categoria,descricao,status,responsavel").eq("animal_id", animalId).eq("status", "realizado")
+      .in("categoria", ["cascos", "dentes", "exames", "medicamento_suplemento", "reproducao", "ocorrencia", "sinal_avaliacao_profissional"])
+      .order("data", { ascending: false }).limit(60),
   ]);
+  const ultimos: any[] = [];
+  for (const c of cuid.data ?? []) if (!ultimos.some((u) => u.categoria === c.categoria)) ultimos.push(c);
   if (a.error || !a.data) throw new Error("Animal não encontrado ou sem internet. Tente de novo.");
   const ultimoPeso = (med.data ?? []).find((m: any) => m.peso_kg != null)?.peso_kg ?? null;
   return {
     animal: a.data, registros: r.data ?? [], medidas: med.data ?? [], anexos: an.data ?? [], dieta: di.data ?? [],
-    pesoKg: ultimoPeso != null ? Number(ultimoPeso) : null, dias,
+    pesoKg: ultimoPeso != null ? Number(ultimoPeso) : null, dias, ultimos,
   };
 }
 
@@ -58,6 +64,9 @@ ${a.observacoes ? `<p><b>Observações:</b> ${esc(a.observacoes)}</p>` : ""}
 
 <h2>Última atualização</h2>
 ${ultimo ? `<table>${linhaReg(ultimo)}</table>` : "<p>Sem anotações no período.</p>"}
+
+<h2>Últimos cuidados (ferrador, dentista, exames, vacina/vermífugo, reprodução)</h2>
+${d.ultimos.length ? `<table><tr><th>Assunto</th><th>Data</th><th>O que foi</th></tr>${d.ultimos.map((u: any) => `<tr><td>${esc(rotuloCategoria(u.categoria))}</td><td>${br(u.data)}</td><td>${esc(u.descricao)}${u.responsavel ? ` (${esc(u.responsavel)})` : ""}</td></tr>`).join("")}</table>` : "<p>Nada anotado.</p>"}
 
 <h2>Pendências</h2>
 ${pend.length ? `<div class="alerta">${pend.map((p: any) => `${br(p.data)} — <b>${esc(infoStatus(p.status).rotulo)}</b>: ${esc(rotuloCategoria(p.categoria))}. ${esc(p.descricao)}`).join("<br>")}</div>` : "<p>Nenhuma.</p>"}

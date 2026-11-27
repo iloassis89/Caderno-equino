@@ -14,7 +14,7 @@ function hojeLocal() {
 }
 
 // ---------- Tutorial ----------
-const CHAVE_TUTORIAL = "ias_tutorial_visto_v1";
+const CHAVE_TUTORIAL = "ias_tutorial_visto_v2";
 
 export async function tutorialJaVisto() {
   try { return (await AsyncStorage.getItem(CHAVE_TUTORIAL)) === "1"; } catch { return true; }
@@ -24,13 +24,11 @@ export async function marcarTutorialVisto() {
 }
 
 const PASSOS = [
-  { icone: "horse-variant", titulo: `Bem-vindo ao ${NOME_APP}`, texto: "Este é o caderno do seu cavalo, no celular. Tudo o que você fizer com o animal fica anotado e guardado." },
-  { icone: "plus-circle", titulo: "1. Cadastre o animal", texto: "Toque em “Animais” lá embaixo e depois em “Cadastrar animal”. Só o nome é obrigatório. Depois você pode tirar a foto e guardar o documento de registro." },
-  { icone: "notebook-edit-outline", titulo: "2. Anote o que acontece", texto: "O botão verde “Anotar”, no meio da barra de baixo, serve para tudo: comida, água, cascos, peso, treino, remédio dado ou algo diferente que viu." },
-  { icone: "check-circle-outline", titulo: "3. Diga a situação", texto: "Em cada anotação escolha: Feito (já fez), Vou fazer (planejado), Confirmar depois ou Chamar veterinário. O que precisa de atenção aparece no Início." },
-  { icone: "file-pdf-box", titulo: "4. Mande para o veterinário", texto: "Na ficha do animal aparece a última atualização. Com um toque você manda o relatório em PDF ou uma mensagem pelo WhatsApp." },
-  { icone: "barley", titulo: "5. Alimentação e peso", texto: "Na ficha, em Alimentação, anote o que ele come por dia e veja o cálculo. Sem balança? Em Anotar → Peso e corpo, meça com fita e o app calcula o peso." },
-  { icone: "chat-question-outline", titulo: "6. Ficou com dúvida?", texto: "Em “Mais” tem as Dicas, o Assistente para perguntas simples e este tutorial de novo. O app não substitui o veterinário." },
+  { icone: "horse-variant", titulo: `Bem-vindo ao ${NOME_APP}`, texto: "O caderno do seu cavalo no celular. Menos papel, menos esquecimento, mais tempo para você." },
+  { icone: "plus-circle", titulo: "1. Cadastre o animal", texto: "Em “Animais”, toque em “Cadastrar animal”. Só o nome é obrigatório." },
+  { icone: "gesture-tap", titulo: "2. Anote tocando", texto: "No botão verde “Anotar”, escolha o assunto e toque nas opções. Hoje e Feito já vêm marcados. Escrever é opcional." },
+  { icone: "bell-ring-outline", titulo: "3. O celular lembra por você", texto: "Na “Agenda”, crie lembretes da comida, da água, do remédio da receita e do ferrador. Na hora, o celular toca e um toque marca como feito." },
+  { icone: "robot-outline", titulo: "4. Alimentação com IA", texto: "Na ficha, em Alimentação, anote o que ele come e toque em “Avaliar com a IA” para ver o que pode estar sobrando ou faltando. Sempre confirme com o veterinário." },
 ];
 
 export function Tutorial({ aoConcluir }: { aoConcluir: () => void }) {

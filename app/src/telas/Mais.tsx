@@ -7,41 +7,60 @@ import { NOME_APP, reais } from "../constantes";
 import { br } from "../datas";
 import { cor, est } from "../tema";
 
+function ItemMenu({ t, i, d, onPress }: { t: string; i: string; d?: string; onPress: () => void }) {
+  return (
+    <Cartao onPress={onPress}>
+      <View style={[est.linha, { gap: 12 }]}>
+        <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: cor.mataClara, alignItems: "center", justifyContent: "center" }}>
+          <Icone nome={i} tamanho={26} cor={cor.mata} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[est.texto, { fontWeight: "700" }]}>{t}</Text>
+          {d ? <Text style={est.textoSuave}>{d}</Text> : null}
+        </View>
+        <Icone nome="chevron-right" tamanho={28} cor={cor.tintaSuave} />
+      </View>
+    </Cartao>
+  );
+}
+
 export function Mais() {
   const nav = useNav();
-  const { admin } = usePlano();
+  const { admin, pago } = usePlano();
   const { dados } = useCarga(async () => {
     const { data: u } = await supabase.auth.getUser();
     const { data: af } = await supabase.from("affiliates").select("id").maybeSingle();
     return { email: u.user?.email, afiliado: !!af };
   });
   const itens = [
-    { t: "Suporte e atendimento", i: "lifebuoy", r: "Suporte" },
-    { t: "Estoque e compras", i: "package-variant-closed", r: "Estoque" },
-    { t: "Tarefas", i: "calendar-check", r: "Tarefas" },
-    { t: "Resumo da semana", i: "file-chart-outline", r: "Resumo" },
-    { t: "Dicas", i: "lightbulb-on-outline", r: "Dicas" },
-    { t: "Perguntar ao assistente", i: "chat-question-outline", r: "Assistente" },
-    { t: "Como usar o app", i: "school-outline", r: "Tutorial" },
-    { t: "Planos e assinatura", i: "star-outline", r: "Planos" },
+    { t: "Estoque", d: "Ração, feno, sal: compras e quanto falta", i: "package-variant-closed", r: "Estoque" },
+    { t: "Todas as anotações", d: "Com filtros", i: "book-open-variant", r: "Historico" },
+    ...(pago ? [{ t: "Resumo da semana", i: "file-chart-outline", r: "Resumo" }] : []),
+    { t: "Minha IA", d: "Use a sua conta de IA (Gemini, ChatGPT ou Claude)", i: "robot-outline", r: "MinhaIA" },
+    { t: "Ajuda", d: "Assistente, dicas, como usar, falar com a gente", i: "lifebuoy", r: "Ajuda" },
+    { t: "Meu plano", i: "star-outline", r: "Planos" },
     ...(dados?.afiliado ? [{ t: "Painel do parceiro", i: "handshake-outline", r: "Afiliado" }] : []),
     ...(admin ? [{ t: "Administração", i: "shield-account-outline", r: "Admin" }] : []),
   ];
   return (
     <Tela titulo="Mais" subtitulo={dados?.email ?? undefined}>
-      {itens.map((i) => (
-        <Cartao key={i.r} onPress={() => nav.ir(i.r)}>
-          <View style={[est.linha, { gap: 12 }]}>
-            <Icone nome={i.i} tamanho={30} cor={cor.mata} />
-            <Text style={[est.texto, { flex: 1, fontWeight: "700" }]}>{i.t}</Text>
-            <Icone nome="chevron-right" tamanho={28} cor={cor.tintaSuave} />
-          </View>
-        </Cartao>
-      ))}
-      <Botao titulo="Sair da conta" tipo="leve" icone="logout" onPress={() => supabase.auth.signOut()} />
+      {itens.map((i) => <ItemMenu key={i.r} t={i.t} d={(i as any).d} i={i.i} onPress={() => nav.ir(i.r)} />)}
+      <Botao titulo="Sair" tipo="leve" icone="logout" onPress={() => supabase.auth.signOut()} />
       <Text style={[est.textoSuave, { marginTop: 20 }]}>
         O {NOME_APP} registra e organiza informações. Ele não faz diagnóstico, não indica remédio e não substitui o médico-veterinário.
       </Text>
+    </Tela>
+  );
+}
+
+export function Ajuda() {
+  const nav = useNav();
+  return (
+    <Tela titulo="Ajuda" voltar>
+      <ItemMenu t="Perguntar ao assistente" d="Dúvidas simples, com IA" i="chat-question-outline" onPress={() => nav.ir("Assistente")} />
+      <ItemMenu t="Dicas" i="lightbulb-on-outline" onPress={() => nav.ir("Dicas")} />
+      <ItemMenu t="Como usar o app" i="school-outline" onPress={() => nav.ir("Tutorial")} />
+      <ItemMenu t="Falar com a gente" d="Suporte, anúncios, sugestões" i="lifebuoy" onPress={() => nav.ir("Suporte")} />
     </Tela>
   );
 }

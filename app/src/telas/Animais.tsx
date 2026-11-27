@@ -1,11 +1,11 @@
 import React, { useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { supabase, mensagemErro } from "../supabase";
 import { carregarPlano, ok, useCarga } from "../dados";
 import { Aviso, Botao, Cabecalho, Campo, Carregando, Cartao, ErroCarga, Escolha, Icone, Tela, Vazio, useNav } from "../ui";
 import { Anexos, FotoAnimal } from "../anexos";
 import { br, mascaraData, paraISO } from "../datas";
-import { cor, est } from "../tema";
+import { cor, est, tam } from "../tema";
 
 export function Animais() {
   const nav = useNav();
@@ -23,10 +23,8 @@ export function Animais() {
   const noLimite = plano ? ativos >= plano.max_animais : false;
 
   return (
-    <Tela titulo="Animais" subtitulo={`${ativos} de ${plano?.max_animais ?? 1} animal(is) no seu plano`}>
-      {noLimite && <Aviso texto="Seu plano está completo. Para cadastrar mais animais, mude de plano." />}
-      <Botao titulo={noLimite ? "Ver planos" : "Cadastrar animal"} icone={noLimite ? "star-outline" : "plus-circle"}
-        onPress={() => nav.ir(noLimite ? "Planos" : "NovoAnimal")} />
+    <Tela titulo="Animais">
+      {!noLimite && <Botao titulo="Cadastrar animal" icone="plus-circle" onPress={() => nav.ir("NovoAnimal")} />}
       <View style={{ height: 14 }} />
       {animais.length === 0 ? <Vazio texto="Nenhum animal cadastrado ainda." /> : animais.map((a: any) => (
         <Cartao key={a.id} onPress={() => nav.ir("Ficha", { id: a.id })} style={!a.ativo ? { opacity: 0.6 } : undefined}>
@@ -34,15 +32,23 @@ export function Animais() {
             <FotoAnimal animalId={a.id} tamanho={72} />
             <View style={{ flex: 1 }}>
               <Text style={[est.texto, { fontSize: 22, fontWeight: "700" }]}>{a.nome}</Text>
-              <Text style={est.textoSuave}>{a.ativo ? "Toque para abrir a ficha" : "Inativo"}</Text>
+              <Text style={est.textoSuave}>{a.ativo ? [a.raca, a.pelagem].filter(Boolean).join(" · ") || "Abrir a ficha" : "Não está mais com você"}</Text>
             </View>
             <Icone nome="chevron-right" tamanho={30} cor={cor.tintaSuave} />
           </View>
         </Cartao>
       ))}
+      {noLimite && (
+        <Pressable onPress={() => nav.ir("Planos")} style={{ minHeight: 48, justifyContent: "center", marginTop: 8 }} accessibilityRole="button">
+          <Text style={{ color: cor.couro, fontSize: tam.texto, fontWeight: "700" }}>Quer cadastrar mais animais? Conheça os planos →</Text>
+        </Pressable>
+      )}
     </Tela>
   );
 }
+
+const RACAS = ["Mangalarga Marchador", "Quarto de Milha", "Crioulo", "Campolina", "Pantaneiro", "Árabe", "Puro-sangue inglês", "Paint Horse", "Sem raça definida"];
+const PELAGENS = ["Alazão", "Castanho", "Tordilho", "Baio", "Preto", "Rosilho", "Pampa", "Lobuno"];
 
 export function NovoAnimal({ animal }: { animal?: any }) {
   const nav = useNav();
@@ -93,10 +99,14 @@ export function NovoAnimal({ animal }: { animal?: any }) {
       <Campo rotulo="Nome do animal" value={nome} onChangeText={setNome} placeholder="Ex.: Sabrina" />
       <Escolha rotulo="Sexo" permitirVazio valor={sexo} aoEscolher={setSexo}
         opcoes={[{ valor: "femea", rotulo: "Fêmea" }, { valor: "macho", rotulo: "Macho" }, { valor: "macho_castrado", rotulo: "Castrado" }]} />
-      <Campo rotulo="Raça" value={raca} onChangeText={setRaca} placeholder="Ex.: Mangalarga" />
-      <Campo rotulo="Pelagem (cor)" value={pelagem} onChangeText={setPelagem} placeholder="Ex.: Tordilho" />
+      <Escolha rotulo="Raça" permitirVazio valor={RACAS.includes(raca) ? raca : null} aoEscolher={(v) => setRaca(v ?? "")}
+        opcoes={RACAS.map((r) => ({ valor: r, rotulo: r }))} />
+      {!RACAS.includes(raca) && <Campo rotulo="Outra raça (opcional)" value={raca} onChangeText={setRaca} />}
+      <Escolha rotulo="Pelagem (cor)" permitirVazio valor={PELAGENS.includes(pelagem) ? pelagem : null} aoEscolher={(v) => setPelagem(v ?? "")}
+        opcoes={PELAGENS.map((r) => ({ valor: r, rotulo: r }))} />
+      {!PELAGENS.includes(pelagem) && <Campo rotulo="Outra pelagem (opcional)" value={pelagem} onChangeText={setPelagem} />}
       <Campo rotulo="Nascimento" value={nasc} onChangeText={(t) => setNasc(mascaraData(t))} placeholder="dia/mês/ano" keyboardType="number-pad" />
-      <Campo rotulo="Observações" value={obs} onChangeText={setObs} multiline />
+      <Campo rotulo="Observações (opcional)" value={obs} onChangeText={setObs} multiline />
       <Aviso texto={erro} tipo="erro" />
       {erro?.includes("Limite do plano") && <Botao titulo="Ver planos" tipo="secundario" onPress={() => nav.ir("Planos")} />}
       <Botao titulo="Guardar" icone="check" onPress={salvar} carregando={salvando} />

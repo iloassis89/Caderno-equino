@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { supabase, mensagemErro } from "../supabase";
 import { useCarga } from "../dados";
-import { Aviso, Bloqueado, Botao, BotaoConfirmar, Cabecalho, Campo, Carregando, Cartao, Escolha, Icone, Tela, Vazio, usePlano } from "../ui";
+import { Aviso, Botao, BotaoConfirmar, Cabecalho, Campo, Carregando, Cartao, Escolha, EscolhaVarias, Icone, Tela, Vazio, useNav } from "../ui";
+import { chamarFuncao } from "../supabase";
 import { lerNumero, numBR } from "../constantes";
 import { calcularDieta, CUIDADOS, infoTipoDieta, REFERENCIAS, TIPOS_DIETA, type Situacao } from "../nutricao";
 import { br } from "../datas";
@@ -35,8 +36,103 @@ function Resultado({ titulo, valor, situacao, referencia }: { titulo: string; va
   );
 }
 
+const QTD = { kg: ["0,5", "1", "2", "3", "4", "5", "8", "10"], g: ["30", "50", "60", "100", "150", "200"] };
+
+// ---------- Avaliação pela IA ----------
+const CATEGORIAS_IA = [
+  { valor: "manutencao", rotulo: "Pouco trabalho" }, { valor: "leve", rotulo: "Passeio leve" }, { valor: "moderado", rotulo: "Lida / marcha" },
+  { valor: "intenso", rotulo: "Prova / lida pesada" }, { valor: "prenhe", rotulo: "Égua prenhe" }, { valor: "lactacao", rotulo: "Égua com potro" },
+  { valor: "crescimento", rotulo: "Potro crescendo" }, { valor: "idoso", rotulo: "Idoso (20+ anos)" }, { valor: "reprodutor", rotulo: "Garanhão cobrindo" },
+];
+const CONDICOES_IA = [
+  { valor: "obeso", rotulo: "Está gordo" }, { valor: "magro", rotulo: "Está magro" }, { valor: "pasto", rotulo: "Fica no pasto" },
+  { valor: "laminite", rotulo: "Já teve laminite" }, { valor: "colica", rotulo: "Cólica recente" }, { valor: "dentes", rotulo: "Dentes ruins" }, { valor: "calor", rotulo: "Sua muito / calor" },
+];
+type Avaliacao = { resumo: string; bom: string[]; excessos: string[]; faltas: string[]; ajustes: string[]; falta_saber: string[]; alerta: string | null };
+
+function ListaIA({ titulo, itens, icone, fundo, texto }: { titulo: string; itens: string[]; icone: string; fundo: string; texto: string }) {
+  if (!itens.length) return null;
+  return (
+    <Cartao style={{ backgroundColor: fundo, borderColor: texto }}>
+      <View style={[est.linha, { gap: 8, marginBottom: 6 }]}>
+        <Icone nome={icone} cor={texto} />
+        <Text style={[est.texto, { fontWeight: "700", color: texto }]}>{titulo}</Text>
+      </View>
+      {itens.map((t, i) => <Text key={i} style={[est.texto, { marginBottom: 4 }]}>• {t}</Text>)}
+    </Cartao>
+  );
+}
+
+function AvaliacaoIA({ animalId }: { animalId: string }) {
+  const nav = useNav();
+  const ultima = useCarga(async () => {
+    const { data } = await supabase.from("dieta_avaliacoes").select("texto,created_at").eq("animal_id", animalId).order("created_at", { ascending: false }).limit(1);
+    const a = data?.[0];
+    return a ? { av: JSON.parse(a.texto) as Avaliacao, quando: a.created_at as string } : null;
+  }, [animalId]);
+  const [aberto, setAberto] = useState(false);
+  const [categoria, setCategoria] = useState<string | null>(null);
+  const [objetivo, setObjetivo] = useState<string | null>("manter");
+  const [condicoes, setCondicoes] = useState<string[]>([]);
+  const [obs, setObs] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [res, setRes] = useState<{ av: Avaliacao; quando: string } | null>(null);
+  const atual = res ?? ultima.dados;
+
+  async function avaliar() {
+    if (ocupado) return;
+    setErro(null); setOcupado(true);
+    const { data, erro: e } = await chamarFuncao<{ avaliacao: Avaliacao; created_at: string }>("avaliar-dieta", { animal_id: animalId, categoria, objetivo, condicoes, observacao: obs });
+    setOcupado(false);
+    if (e || !data?.avaliacao) return setErro(e ?? "Não foi possível avaliar agora.");
+    setRes({ av: data.avaliacao, quando: data.created_at });
+    setAberto(false);
+  }
+
+  return (
+    <View>
+      <Cabecalho texto="Avaliação com IA" />
+      {!aberto ? (
+        <Botao titulo={atual ? "Avaliar de novo com a IA" : "Avaliar a alimentação com a IA"} icone="robot-outline" tipo={atual ? "leve" : "secundario"} onPress={() => setAberto(true)} />
+      ) : (
+        <Cartao style={{ borderColor: cor.couro, borderWidth: 2 }}>
+          <Escolha rotulo="O que ele faz?" valor={categoria} aoEscolher={setCategoria} opcoes={CATEGORIAS_IA} colunas={2} />
+          <Escolha rotulo="Objetivo" valor={objetivo} aoEscolher={setObjetivo}
+            opcoes={[{ valor: "manter", rotulo: "Manter o peso" }, { valor: "ganhar", rotulo: "Ganhar peso" }, { valor: "perder", rotulo: "Perder peso" }]} />
+          <EscolhaVarias rotulo="Marque se for o caso" valores={condicoes} aoMudar={setCondicoes} opcoes={CONDICOES_IA} colunas={2} />
+          <Campo rotulo="Algo mais? (opcional)" value={obs} onChangeText={setObs} multiline maxLength={400} placeholder="Ex.: a ração é de 12% de proteína" />
+          <Aviso texto={erro} tipo="erro" />
+          <Botao titulo="Avaliar agora" icone="robot-outline" tipo="secundario" onPress={avaliar} carregando={ocupado} />
+          {ocupado && <Text style={[est.textoSuave, { marginTop: 6 }]}>A IA está olhando a alimentação… pode levar alguns segundos.</Text>}
+          <Pressable onPress={() => setAberto(false)} style={{ minHeight: 48, justifyContent: "center", alignItems: "center" }}>
+            <Text style={{ color: cor.couro, fontSize: tam.texto, fontWeight: "700" }}>Cancelar</Text>
+          </Pressable>
+        </Cartao>
+      )}
+      {atual && !aberto && (
+        <View style={{ marginTop: 10 }}>
+          {atual.av.alerta ? <ListaIA titulo="Atenção" itens={[atual.av.alerta]} icone="alert-octagon-outline" fundo={cor.barroClaro} texto={cor.barro} /> : null}
+          {atual.av.resumo ? <Text style={[est.texto, { fontWeight: "700", marginBottom: 8 }]}>{atual.av.resumo}</Text> : null}
+          <ListaIA titulo="Parece bom" itens={atual.av.bom} icone="check-circle-outline" fundo={cor.mataClara} texto={cor.mata} />
+          <ListaIA titulo="Pode estar sobrando" itens={atual.av.excessos} icone="arrow-up-circle-outline" fundo={cor.barroClaro} texto={cor.barro} />
+          <ListaIA titulo="Pode estar faltando" itens={atual.av.faltas} icone="arrow-down-circle-outline" fundo={cor.ouroClaro} texto={cor.ouro} />
+          <ListaIA titulo="Para conversar com o veterinário" itens={atual.av.ajustes} icone="stethoscope" fundo={cor.cartao} texto={cor.mata} />
+          <ListaIA titulo="Falta saber" itens={atual.av.falta_saber} icone="help-circle-outline" fundo={cor.couroClaro} texto={cor.couro} />
+          <Text style={[est.textoSuave, { marginBottom: 8 }]}>
+            Avaliado em {br(atual.quando.slice(0, 10))}. Feito por inteligência artificial com base em referências de nutrição. Pode errar: confirme com o veterinário ou zootecnista antes de mudar a alimentação, sempre aos poucos.
+          </Text>
+          <Pressable onPress={() => nav.ir("MinhaIA")} style={{ minHeight: 44, justifyContent: "center" }}>
+            <Text style={{ color: cor.couro, fontSize: tam.pequeno, fontWeight: "700" }}>Usar a minha própria IA →</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function Dieta({ animalId, nome }: { animalId: string; nome: string }) {
-  const { pago } = usePlano();
+  const nav = useNav();
   const [form, setForm] = useState<any | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -54,13 +150,6 @@ export default function Dieta({ animalId, nome }: { animalId: string; nome: stri
     if (dados?.ultimoPeso && !pesoTxt) setPesoTxt(String(dados.ultimoPeso.peso_kg).replace(".", ","));
   }, [dados]);
 
-  if (!pago) {
-    return (
-      <Tela titulo="Alimentação" voltar subtitulo={nome}>
-        <Bloqueado titulo="Dieta e cálculo da alimentação" texto="Anote o que o animal come por dia (ração, feno, capim, sal mineral…) e veja o cálculo comparado com referências. Disponível a partir de R$ 9,90 por mês." />
-      </Tela>
-    );
-  }
   if (carregando && !dados) return <Tela titulo="Alimentação" voltar><Carregando /></Tela>;
 
   const itens = (dados?.itens ?? []).map((i: any) => ({ ...i, quantidade: Number(i.quantidade), materia_seca_pct: i.materia_seca_pct != null ? Number(i.materia_seca_pct) : null }));
@@ -108,7 +197,7 @@ export default function Dieta({ animalId, nome }: { animalId: string; nome: stri
   }
 
   return (
-    <Tela titulo="Alimentação" voltar subtitulo={`${nome} — o que come por dia`}>
+    <Tela titulo="Alimentação" voltar subtitulo={nome}>
       <Campo rotulo="Peso do animal (kg)" value={pesoTxt} onChangeText={setPesoTxt} keyboardType="decimal-pad"
         dica={dados?.ultimoPeso ? `Último peso anotado: ${numBR(Number(dados.ultimoPeso.peso_kg))} kg em ${br(dados.ultimoPeso.data)}${dados.ultimoPeso.medidas?.peso_estimado_fita ? " (estimado pela fita)" : ""}.` : "Sem peso anotado. Use Anotar → Peso e corpo (dá para medir com fita), ou digite aqui."} />
 
@@ -119,7 +208,7 @@ export default function Dieta({ animalId, nome }: { animalId: string; nome: stri
             <Text style={[est.texto, { fontWeight: "700", flex: 1 }]}>{i.nome}</Text>
             <Text style={[est.texto, { fontWeight: "700" }]}>{numBR(i.quantidade, 3)} {i.unidade}</Text>
           </View>
-          <Text style={est.textoSuave}>{infoTipoDieta(i.tipo).rotulo} · {i.refeicoes} vez(es) ao dia · toque para mudar</Text>
+          <Text style={est.textoSuave}>{infoTipoDieta(i.tipo).rotulo} · {i.refeicoes}x por dia</Text>
         </Cartao>
       ))}
 
@@ -128,9 +217,12 @@ export default function Dieta({ animalId, nome }: { animalId: string; nome: stri
           <Text style={[est.texto, { fontWeight: "700", marginBottom: 8 }]}>{form.id ? "Mudar alimento" : "Novo alimento"}</Text>
           <Escolha rotulo="Tipo" valor={form.tipo} aoEscolher={(v) => setForm({ ...form, tipo: v, unidade: v === "sal_mineral" || v === "sal_comum" ? "g" : "kg" })} opcoes={TIPOS_DIETA} colunas={2} />
           <Campo rotulo="Nome ou marca (se quiser)" value={form.nome} onChangeText={(t) => setForm({ ...form, nome: t })} placeholder="Ex.: Ração Potro 12%" />
+          <Escolha rotulo={`Quanto por dia (${form.unidade === "g" ? "gramas" : "kg"})`} valor={QTD[form.unidade === "g" ? "g" : "kg"].includes(form.quantidade) ? form.quantidade : null}
+            aoEscolher={(v) => v && setForm({ ...form, quantidade: v })}
+            opcoes={QTD[form.unidade === "g" ? "g" : "kg"].map((n) => ({ valor: n, rotulo: n }))} />
           <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
             <View style={{ flex: 1 }}>
-              <Campo rotulo="Quanto por dia" value={form.quantidade} onChangeText={(t) => setForm({ ...form, quantidade: t })} keyboardType="decimal-pad" />
+              <Campo rotulo="Outra quantidade" value={form.quantidade} onChangeText={(t) => setForm({ ...form, quantidade: t })} keyboardType="decimal-pad" />
             </View>
             <View style={{ width: 150 }}>
               <Escolha rotulo="Medida" valor={form.unidade} aoEscolher={(v) => setForm({ ...form, unidade: v ?? "kg" })}
@@ -148,11 +240,18 @@ export default function Dieta({ animalId, nome }: { animalId: string; nome: stri
             <Text style={{ color: cor.couro, fontSize: tam.texto, fontWeight: "700" }}>Cancelar</Text>
           </Pressable>
         </Cartao>
-      ) : <Botao titulo="Adicionar alimento" icone="plus-circle" onPress={novo} />}
+      ) : (
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <Botao titulo="Alimento" icone="plus-circle" style={{ flex: 1 }} onPress={novo} />
+          <Botao titulo="Horários" icone="bell-plus-outline" tipo="leve" style={{ flex: 1 }} onPress={() => nav.ir("NovoLembrete")} />
+        </View>
+      )}
+
+      {itens.length > 0 && !form && <AvaliacaoIA animalId={animalId} />}
 
       {itens.length > 0 && (
         <>
-          <Cabecalho texto="Cálculo da dieta" />
+          <Cabecalho texto="Está bom? (conta do app)" />
           <Text style={[est.textoSuave, { marginBottom: 10 }]}>
             Total no cocho: {numBR(r.naturalKg, 2)} kg por dia. O cálculo só compara com referências para cavalo adulto em descanso ou trabalho leve.
           </Text>
@@ -187,7 +286,7 @@ export default function Dieta({ animalId, nome }: { animalId: string; nome: stri
             {temSilagem && <Text style={est.texto}>• {CUIDADOS.silagem}</Text>}
             <Text style={[est.textoSuave, { marginTop: 8 }]}>Este cálculo não substitui o veterinário ou o zootecnista. Para montar ou mudar a dieta, converse com eles.</Text>
           </Cartao>
-          <Text style={[est.textoSuave, { fontSize: 13 }]}>Fontes: {REFERENCIAS.fontes.join(" · ")}</Text>
+          <Text style={[est.textoSuave, { fontSize: tam.mini }]}>Fontes: {REFERENCIAS.fontes.join(" · ")}</Text>
         </>
       )}
     </Tela>

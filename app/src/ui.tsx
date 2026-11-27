@@ -76,7 +76,7 @@ export function Botao({ titulo, onPress, tipo = "principal", carregando, desativ
       disabled={desativado || carregando}
       onPress={onPress}
       style={({ pressed }) => [{
-        backgroundColor: fundo, minHeight: tam.toque, paddingHorizontal: 16, borderRadius: 12, alignItems: "center",
+        backgroundColor: fundo, minHeight: tam.toque, paddingHorizontal: 16, borderRadius: 14, alignItems: "center",
         justifyContent: "center", flexDirection: "row", gap: 8, marginTop: 10, opacity: desativado ? 0.5 : pressed ? 0.85 : 1,
         borderWidth: tipo === "leve" ? 2 : 0, borderColor: cor.mata,
       }, style]}
@@ -97,9 +97,9 @@ export function Campo({ rotulo, dica, senha, ...props }: TextInputProps & { rotu
   return (
     <View style={{ marginBottom: 14 }}>
       <Text style={{ fontSize: tam.pequeno, color: cor.tintaSuave, marginBottom: 6, fontWeight: "700" }}>{rotulo}</Text>
-      <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: cor.branco, borderWidth: 2, borderColor: cor.linha, borderRadius: 12 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: cor.branco, borderWidth: 2, borderColor: cor.borda, borderRadius: 14 }}>
         <TextInput
-          placeholderTextColor="#8C8272"
+          placeholderTextColor={cor.placeholder}
           accessibilityLabel={rotulo}
           secureTextEntry={senha ? !ver : props.secureTextEntry}
           {...props}
@@ -138,13 +138,13 @@ export function Escolha({ rotulo, opcoes, valor, aoEscolher, permitirVazio, colu
               accessibilityState={{ selected: ativo }}
               onPress={() => aoEscolher(ativo && permitirVazio ? null : o.valor)}
               style={{
-                minHeight: 52, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 2,
+                minHeight: 56, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, borderWidth: 2,
                 flexDirection: "row", alignItems: "center", gap: 8,
                 width: colunas === 2 ? "48.5%" : colunas === 1 ? "100%" : undefined,
-                borderColor: ativo ? cor.mata : cor.linha, backgroundColor: ativo ? cor.mata : cor.branco,
+                borderColor: ativo ? cor.mata : cor.borda, backgroundColor: ativo ? cor.mata : cor.branco,
               }}
             >
-              {o.icone ? <Icone nome={o.icone} tamanho={24} cor={ativo ? cor.branco : cor.mata} /> : null}
+              {ativo ? <Icone nome="check-bold" tamanho={22} cor={cor.branco} /> : o.icone ? <Icone nome={o.icone} tamanho={24} cor={cor.mata} /> : null}
               <Text style={{ color: ativo ? cor.branco : cor.tinta, fontSize: tam.pequeno, fontWeight: "600", flexShrink: 1 }}>{o.rotulo}</Text>
             </Pressable>
           );
@@ -159,7 +159,7 @@ export function Selo({ status }: { status: string }) {
   return (
     <View style={{ backgroundColor: s.fundo, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4 }}>
       <Icone nome={s.icone!} tamanho={16} cor={s.texto} />
-      <Text style={{ color: s.texto, fontSize: 14, fontWeight: "700" }}>{s.rotulo}</Text>
+      <Text style={{ color: s.texto, fontSize: tam.mini, fontWeight: "700" }}>{s.rotulo}</Text>
     </View>
   );
 }
@@ -242,5 +242,61 @@ export function BotaoConfirmar({ titulo, onConfirmar, icone = "trash-can-outline
       style={armado ? undefined : { borderColor: cor.barro }}
       onPress={() => { if (armado) { setArmado(false); onConfirmar(); } else setArmado(true); }}
     />
+  );
+}
+
+// Marcar várias opções (toque para ligar/desligar)
+export function EscolhaVarias({ rotulo, opcoes, valores, aoMudar, colunas }: {
+  rotulo?: string; opcoes: Opcao[]; valores: string[]; aoMudar: (v: string[]) => void; colunas?: 1 | 2;
+}) {
+  return (
+    <View style={{ marginBottom: 14 }}>
+      {rotulo ? <Text style={{ fontSize: tam.pequeno, color: cor.tintaSuave, marginBottom: 8, fontWeight: "700" }}>{rotulo}</Text> : null}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {opcoes.map((o) => {
+          const ativo = valores.includes(o.valor);
+          return (
+            <Pressable key={o.valor} accessibilityRole="checkbox" accessibilityState={{ checked: ativo }}
+              onPress={() => aoMudar(ativo ? valores.filter((v) => v !== o.valor) : [...valores, o.valor])}
+              style={{
+                minHeight: 56, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, borderWidth: 2,
+                flexDirection: "row", alignItems: "center", gap: 8,
+                width: colunas === 2 ? "48.5%" : colunas === 1 ? "100%" : undefined,
+                borderColor: ativo ? cor.mata : cor.borda, backgroundColor: ativo ? cor.mataClara : cor.branco,
+              }}>
+              <Icone nome={ativo ? "checkbox-marked" : "checkbox-blank-outline"} tamanho={24} cor={cor.mata} />
+              <Text style={{ color: cor.tinta, fontSize: tam.pequeno, fontWeight: "600", flexShrink: 1 }}>{o.rotulo}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// Escolher horários tocando (e, se quiser, digitar outro)
+export function Horarios({ rotulo, prontos, valores, aoMudar, maximo = 8 }: {
+  rotulo: string; prontos: string[]; valores: string[]; aoMudar: (v: string[]) => void; maximo?: number;
+}) {
+  const [outro, setOutro] = useState("");
+  const todos = [...new Set([...prontos, ...valores])].sort();
+  function addOutro() {
+    const m = outro.trim().replace(/[^0-9]/g, "");
+    const t = m.length >= 3 ? `${m.slice(0, m.length - 2).padStart(2, "0")}:${m.slice(-2)}` : "";
+    if (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(t) || valores.includes(t) || valores.length >= maximo) return;
+    aoMudar([...valores, t].sort());
+    setOutro("");
+  }
+  return (
+    <View>
+      <EscolhaVarias rotulo={rotulo} opcoes={todos.map((h) => ({ valor: h, rotulo: h }))} valores={valores}
+        aoMudar={(v) => aoMudar(v.slice(0, maximo).sort())} />
+      <View style={[{ flexDirection: "row", alignItems: "flex-end", gap: 8 }]}>
+        <View style={{ flex: 1 }}>
+          <Campo rotulo="Outro horário (ex.: 0930)" value={outro} onChangeText={setOutro} keyboardType="number-pad" maxLength={5} />
+        </View>
+        <View style={{ marginBottom: 14 }}><Botao titulo="Pôr" tipo="leve" onPress={addOutro} /></View>
+      </View>
+    </View>
   );
 }

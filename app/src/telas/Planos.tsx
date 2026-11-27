@@ -124,9 +124,13 @@ export default function Planos({ retorno }: { retorno?: string }) {
 
       <Cartao>
         <Text style={[est.texto, { fontWeight: "700" }]}>Grátis (1 animal)</Text>
-        <Text style={est.texto}>Anotações, foto e documento de registro do animal, tarefas e os últimos 30 dias de histórico.</Text>
-        <Text style={[est.texto, { fontWeight: "700", marginTop: 10 }]}>A partir de R$ 9,90 por mês</Text>
-        <Text style={est.texto}>Tudo do grátis, mais: relatório em PDF e envio pelo WhatsApp ao veterinário, cálculo da alimentação, estoque e gastos, fotos nas anotações, histórico completo, evolução do peso e resumo da semana.</Text>
+        {["Anotar tocando", "Lembretes no celular (comida, água, remédio da receita, tarefas)", "Alimentação com avaliação por IA", "Assistente com IA (5 por dia, ou sem limite com a sua IA)", "Foto e documento do animal", "Últimos 30 dias de histórico"].map((t) => (
+          <Text key={t} style={est.texto}>✓ {t}</Text>
+        ))}
+        <Text style={[est.texto, { fontWeight: "700", marginTop: 12 }]}>Pago: a partir de R$ 9,90 por mês</Text>
+        {["Tudo do grátis, para mais animais", "PDF e WhatsApp para o veterinário", "Estoque, gastos e aviso de comprar de novo", "Fotos nas anotações", "Histórico completo e evolução do peso", "Resumo da semana", "Assistente: 30 por dia"].map((t) => (
+          <Text key={t} style={est.texto}>✓ {t}</Text>
+        ))}
       </Cartao>
 
       <Cabecalho texto="Cupom de indicação" />

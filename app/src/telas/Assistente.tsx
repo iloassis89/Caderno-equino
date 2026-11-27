@@ -42,7 +42,7 @@ export default function Assistente() {
     setEsperando(false);
     if (e || !data?.resposta) { setMsgs(msgs); setTexto(t); setErro(e ?? "Não foi possível responder agora."); return; }
     setMsgs([...novas, { papel: "assistente", texto: data.resposta }]);
-    setUso({ usadas: data.usadas, limite: data.limite });
+    setUso(typeof data.usadas === "number" && typeof data.limite === "number" ? { usadas: data.usadas, limite: data.limite } : null);
   }
 
   return (
@@ -75,7 +75,7 @@ export default function Assistente() {
       <Botao titulo="Perguntar" icone="send" onPress={() => enviar()} carregando={esperando} desativado={!texto.trim()} />
       {uso && <Text style={[est.textoSuave, { marginTop: 8 }]}>Perguntas hoje: {uso.usadas} de {uso.limite}.</Text>}
       {msgs.length > 0 && <Botao titulo="Começar nova conversa" tipo="leve" icone="refresh" onPress={limpar} />}
-      <Text style={[est.textoSuave, { marginTop: 8, fontSize: 13 }]}>As respostas são geradas por inteligência artificial e podem conter erros. Confirme com o veterinário.</Text>
+      <Text style={[est.textoSuave, { marginTop: 8, fontSize: 15 }]}>As respostas são geradas por inteligência artificial e podem conter erros. Confirme com o veterinário.</Text>
     </Tela>
   );
 }

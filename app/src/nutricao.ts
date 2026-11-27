@@ -6,15 +6,15 @@ export type TipoDieta =
   | "feno" | "capim_verde" | "silagem" | "racao" | "grao" | "farelo" | "sal_mineral" | "sal_comum" | "suplemento" | "outro";
 
 export const TIPOS_DIETA: (Opcao & { valor: TipoDieta; ms: number | null; grupo: "volumoso" | "concentrado" | "sal" | "outro" })[] = [
-  { valor: "feno", rotulo: "Feno", icone: "barley", ms: 88, grupo: "volumoso" },
-  { valor: "capim_verde", rotulo: "Capim verde", icone: "barley", ms: 22, grupo: "volumoso" },
-  { valor: "silagem", rotulo: "Silagem", icone: "barley", ms: 32, grupo: "volumoso" },
-  { valor: "racao", rotulo: "Ração", icone: "barley", ms: 89, grupo: "concentrado" },
-  { valor: "grao", rotulo: "Milho ou aveia", icone: "barley", ms: 88, grupo: "concentrado" },
-  { valor: "farelo", rotulo: "Farelo", icone: "barley", ms: 87, grupo: "concentrado" },
+  { valor: "feno", rotulo: "Feno", icone: "grass", ms: 88, grupo: "volumoso" },
+  { valor: "capim_verde", rotulo: "Capim verde", icone: "grass", ms: 22, grupo: "volumoso" },
+  { valor: "silagem", rotulo: "Silagem", icone: "silo", ms: 32, grupo: "volumoso" },
+  { valor: "racao", rotulo: "Ração", icone: "sack", ms: 89, grupo: "concentrado" },
+  { valor: "grao", rotulo: "Milho ou aveia", icone: "corn", ms: 88, grupo: "concentrado" },
+  { valor: "farelo", rotulo: "Farelo", icone: "grain", ms: 87, grupo: "concentrado" },
   { valor: "sal_mineral", rotulo: "Sal mineral", icone: "shaker-outline", ms: 100, grupo: "sal" },
   { valor: "sal_comum", rotulo: "Sal comum", icone: "shaker-outline", ms: 100, grupo: "sal" },
-  { valor: "suplemento", rotulo: "Suplemento", icone: "pill", ms: 90, grupo: "outro" },
+  { valor: "suplemento", rotulo: "Suplemento", icone: "bottle-tonic-outline", ms: 90, grupo: "outro" },
   { valor: "outro", rotulo: "Outro", icone: "dots-horizontal", ms: null, grupo: "outro" },
 ];
 

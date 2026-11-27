@@ -66,3 +66,15 @@ export function proximaData(iso: string, recorrencia: string, intervalo = 1) {
     default: return null;
   }
 }
+
+/** "Hoje", "Ontem", "Amanhã" ou "sex 21/11" */
+export function quando(iso?: string | null) {
+  if (!iso) return "";
+  const hoje = hojeISO();
+  if (iso === hoje) return "Hoje";
+  if (iso === somarDias(hoje, -1)) return "Ontem";
+  if (iso === somarDias(hoje, 1)) return "Amanhã";
+  const d = deISO(iso);
+  const sem = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
+  return `${sem} ${br(iso)}`;
+}
