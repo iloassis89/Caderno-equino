@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { Text, View } from "react-native";
 import { supabase, mensagemErro } from "../supabase";
 import { carregarAnimais, carregarPlano, useCarga } from "../dados";
-import { Aviso, Botao, Cabecalho, Campo, Carregando, Cartao, Escolha, Tela, Vazio, useNav } from "../ui";
-import { MOVIMENTOS, TIPOS_ESTOQUE, reais, rotuloDe } from "../constantes";
+import { Aviso, Botao, Cabecalho, Campo, Carregando, Cartao, Escolha, Tela, Vazio, useNav, usePlano } from "../ui";
+import { MOVIMENTOS, TIPOS_ESTOQUE, lerNumero, reais, rotuloDe } from "../constantes";
 import { br, hojeISO, mascaraData, paraISO } from "../datas";
 import { cor, est } from "../tema";
 
@@ -11,6 +11,7 @@ const qtd = (n: any) => Number(n).toLocaleString("pt-BR", { maximumFractionDigit
 
 export function Estoque() {
   const nav = useNav();
+  const { pago } = usePlano();
   const { dados, carregando } = useCarga(async () => {
     const [plano, saldos, movs] = await Promise.all([
       carregarPlano(),
@@ -21,7 +22,7 @@ export function Estoque() {
   });
   if (carregando && !dados) return <Tela titulo="Estoque e compras" voltar><Carregando /></Tela>;
   const { plano, saldos, movs } = dados!;
-  const liberado = !!plano?.permite_estoque;
+  const liberado = pago;
   const totalGasto = saldos.reduce((s: number, i: any) => s + Number(i.custo_realizado_centavos ?? 0), 0);
   const totalPlanejado = saldos.reduce((s: number, i: any) => s + Number(i.custo_planejado_centavos ?? 0), 0);
 
@@ -120,17 +121,18 @@ export function NovoMovimento({ itemId }: { itemId?: string }) {
     if (!item || !tipo) return setErro("Escolha o item e o tipo de movimento.");
     const dataISO = paraISO(data);
     if (!dataISO) return setErro("Data inválida.");
-    const q = Number(quantidade.replace(",", "."));
+    const q = lerNumero(quantidade) as number;
     if (!Number.isFinite(q) || (tipo !== "ajuste" && q <= 0) || q === 0) return setErro("Quantidade inválida.");
     let custoCent: number | null = null;
     if (custo.trim()) {
-      const c = Number(custo.replace(/\./g, "").replace(",", "."));
+      const c = lerNumero(custo) as number;
       if (!Number.isFinite(c) || c < 0) return setErro("Valor inválido.");
       custoCent = Math.round(c * 100);
     }
     setSalvando(true);
     const { error } = await supabase.from("stock_movements").insert({
-      item_id: item, tipo, data: dataISO, quantidade: q, custo_total_centavos: custoCent,
+      item_id: item, tipo, data: dataISO, quantidade: q,
+      custo_total_centavos: tipo === "compra_planejada" || tipo === "compra_realizada" ? custoCent : null,
       animal_id: tipo === "consumo" ? animal : null, observacao: obs.trim() || null,
     });
     setSalvando(false);

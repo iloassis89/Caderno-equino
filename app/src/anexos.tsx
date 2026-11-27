@@ -53,12 +53,15 @@ export async function linkTemporario(caminho: string, segundos = 3600) {
   return data?.signedUrl ?? null;
 }
 
+// Na web, a janela é aberta no toque (antes de esperar o link), senão o navegador bloqueia
 export async function abrirAnexo(caminho: string) {
+  // @ts-ignore
+  const janela = Platform.OS === "web" ? window.open("", "_blank") : null;
   const url = await linkTemporario(caminho, 600);
-  if (!url) return;
+  if (!url) { janela?.close(); throw new Error("Não foi possível abrir o arquivo agora."); }
   if (Platform.OS === "web") {
     // @ts-ignore
-    window.open(url, "_blank");
+    if (janela) janela.location.href = url; else window.location.href = url;
   } else {
     await WebBrowser.openBrowserAsync(url);
   }
@@ -137,6 +140,7 @@ export function Anexos({ animalId, recordId, tipo, titulo, vazio }: {
 }) {
   const [enviando, setEnviando] = useState(false);
   const [msg, setMsg] = useState<{ t: string; tipo: "erro" | "ok" } | null>(null);
+  const [confirmar, setConfirmar] = useState<string | null>(null);
   const { dados, recarregar } = useCarga(async () => {
     let q = supabase.from("anexos").select("*").eq("animal_id", animalId).eq("tipo", tipo).order("created_at", { ascending: false });
     q = recordId ? q.eq("record_id", recordId) : q.is("record_id", null);
@@ -163,9 +167,17 @@ export function Anexos({ animalId, recordId, tipo, titulo, vazio }: {
   }
 
   async function apagar(a: any) {
-    await supabase.from("anexos").delete().eq("id", a.id);
+    if (confirmar !== a.id) { setConfirmar(a.id); return; }
+    setConfirmar(null);
+    const { error } = await supabase.from("anexos").delete().eq("id", a.id);
+    if (error) return setMsg({ t: mensagemErro(error), tipo: "erro" });
     await supabase.storage.from(BUCKET).remove([a.caminho]);
     recarregar();
+  }
+
+  async function abrir(a: any) {
+    setMsg(null);
+    try { await abrirAnexo(a.caminho); } catch (e: any) { setMsg({ t: mensagemErro(e), tipo: "erro" }); }
   }
 
   return (
@@ -175,7 +187,7 @@ export function Anexos({ animalId, recordId, tipo, titulo, vazio }: {
         <View style={{ gap: 8, marginBottom: 8 }}>
           {(dados ?? []).map((a: any) => (
             <View key={a.id} style={[est.linha, { gap: 10, backgroundColor: cor.branco, borderRadius: 10, borderWidth: 1, borderColor: cor.linha, padding: 8 }]}>
-              <Pressable onPress={() => abrirAnexo(a.caminho)} style={[est.linha, { gap: 10, flex: 1 }]} accessibilityRole="button" accessibilityLabel={`Abrir ${a.nome ?? "arquivo"}`}>
+              <Pressable onPress={() => abrir(a)} style={[est.linha, { gap: 10, flex: 1 }]} accessibilityRole="button" accessibilityLabel={`Abrir ${a.nome ?? "arquivo"}`}>
                 {a.miniatura ? <Image source={{ uri: a.miniatura }} style={{ width: 56, height: 56, borderRadius: 8 }} /> :
                   <Icone nome={a.mime?.includes("pdf") ? "file-pdf-box" : "file-document-outline"} tamanho={44} cor={cor.barro} />}
                 <View style={{ flex: 1 }}>
@@ -183,8 +195,9 @@ export function Anexos({ animalId, recordId, tipo, titulo, vazio }: {
                   <Text style={est.textoSuave}>Toque para abrir</Text>
                 </View>
               </Pressable>
-              <Pressable onPress={() => apagar(a)} accessibilityRole="button" accessibilityLabel="Apagar arquivo" style={{ padding: 10 }}>
-                <Icone nome="trash-can-outline" cor={cor.barro} />
+              <Pressable onPress={() => apagar(a)} accessibilityRole="button" accessibilityLabel={confirmar === a.id ? "Confirmar: apagar arquivo" : "Apagar arquivo"}
+                style={{ padding: 10, minHeight: 48, justifyContent: "center", borderRadius: 8, backgroundColor: confirmar === a.id ? cor.barro : "transparent" }}>
+                {confirmar === a.id ? <Text style={{ color: cor.branco, fontWeight: "700", fontSize: tam.pequeno }}>Apagar?</Text> : <Icone nome="trash-can-outline" cor={cor.barro} />}
               </Pressable>
             </View>
           ))}

@@ -65,6 +65,9 @@ export const numBR = (n: number | null | undefined, casas = 1) =>
 // Converte texto digitado ("12,5") em número; vazio = null; inválido = NaN
 export function lerNumero(t: string): number | null {
   if (!t || !t.trim()) return null;
-  const n = Number(t.trim().replace(/\./g, "").replace(",", "."));
+  let v = t.trim().replace(/\s/g, "");
+  // "1.250,5" -> 1250.5 ; "2,5" -> 2.5 ; "2.5" -> 2.5
+  if (v.includes(",")) v = v.replace(/\./g, "").replace(",", ".");
+  const n = Number(v);
   return Number.isFinite(n) ? n : NaN;
 }

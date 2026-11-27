@@ -1,27 +1,28 @@
 import React from "react";
 import { Text, View } from "react-native";
 import { supabase } from "../supabase";
-import { carregarPlano, useCarga } from "../dados";
-import { Botao, Cabecalho, Carregando, Cartao, Icone, Rotulado, Selo, Tela, Vazio, useNav } from "../ui";
+import { carregarPlano, ok, useCarga } from "../dados";
+import { Botao, Cabecalho, Carregando, Cartao, ErroCarga, Icone, Rotulado, Selo, Tela, Vazio, useNav } from "../ui";
 import { br, hojeISO, somarDias } from "../datas";
 import { rotuloCategoria } from "../constantes";
 import { cor, est } from "../tema";
 
 export default function Inicio() {
   const nav = useNav();
-  const { dados, carregando } = useCarga(async () => {
+  const { dados, carregando, erro, recarregar } = useCarga(async () => {
     const hoje = hojeISO();
     const [plano, pendencias, tarefas, perfil] = await Promise.all([
       carregarPlano(),
-      supabase.from("records").select("id,data,categoria,descricao,status,decisao_necessaria,proximo_passo,animal_id,animals(nome)")
+      supabase.from("records").select("*, animals(nome)")
         .in("status", ["a_confirmar", "avaliacao_veterinaria"]).order("data", { ascending: false }).limit(20),
       supabase.from("tasks").select("id,titulo,proxima_data,animals(nome)").eq("ativo", true)
         .lte("proxima_data", somarDias(hoje, 3)).order("proxima_data").limit(10),
       supabase.from("profiles").select("nome").maybeSingle(),
     ]);
-    return { plano, pendencias: pendencias.data ?? [], tarefas: tarefas.data ?? [], nome: (perfil.data?.nome as string | null) ?? null, hoje };
+    return { plano, pendencias: ok(pendencias) ?? [], tarefas: ok(tarefas) ?? [], nome: (perfil.data?.nome as string | null) ?? null, hoje };
   });
 
+  if (erro && !dados) return <Tela titulo="Início"><ErroCarga erro={erro} tentar={recarregar} /></Tela>;
   if (carregando && !dados) return <Tela titulo="Início"><Carregando /></Tela>;
   const d = dados!;
   const total = d.plano?.animais_ativos ?? 0;
@@ -91,13 +92,14 @@ function Atalho({ icone, texto, onPress }: { icone: string; texto: string; onPre
 function ItemPendencia({ p }: { p: any }) {
   const nav = useNav();
   return (
-    <Cartao onPress={() => nav.ir("Ficha", { id: p.animal_id })}>
+    <Cartao onPress={() => nav.ir("NovoRegistro", { registro: p })}>
       <Text style={[est.texto, { fontWeight: "700" }]}>{p.animals?.nome} · {rotuloCategoria(p.categoria)}</Text>
       <Text style={est.textoSuave}>{br(p.data)}</Text>
       <View style={{ marginVertical: 6 }}><Selo status={p.status} /></View>
       <Text style={est.texto}>{p.descricao}</Text>
       <Rotulado rotulo="O que decidir" valor={p.decisao_necessaria} />
       <Rotulado rotulo="Próximo passo" valor={p.proximo_passo} />
+      <Text style={[est.textoSuave, { marginTop: 6, color: cor.couro, fontWeight: "700" }]}>Toque para atualizar a situação</Text>
     </Cartao>
   );
 }

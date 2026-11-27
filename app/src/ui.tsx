@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import {
   ActivityIndicator, Pressable, ScrollView, Text, TextInput, View, type TextInputProps, type ViewStyle,
 } from "react-native";
@@ -203,3 +203,36 @@ export function Cabecalho({ texto }: { texto: string }) {
 }
 
 export const tituloFonte = fonteTitulo;
+
+// Mostra o erro de carregamento com botão para tentar de novo
+export function ErroCarga({ erro, tentar }: { erro?: string | null; tentar: () => void }) {
+  if (!erro) return null;
+  return (
+    <View>
+      <Aviso texto={erro} tipo="erro" />
+      <Botao titulo="Tentar de novo" icone="refresh" tipo="leve" onPress={tentar} />
+    </View>
+  );
+}
+
+// Botão que pede um segundo toque antes de apagar (evita apagar sem querer)
+export function BotaoConfirmar({ titulo, onConfirmar, icone = "trash-can-outline", carregando }: {
+  titulo: string; onConfirmar: () => void; icone?: string; carregando?: boolean;
+}) {
+  const [armado, setArmado] = useState(false);
+  useEffect(() => {
+    if (!armado) return;
+    const t = setTimeout(() => setArmado(false), 6000);
+    return () => clearTimeout(t);
+  }, [armado]);
+  return (
+    <Botao
+      titulo={armado ? "Toque de novo para confirmar" : titulo}
+      icone={icone}
+      tipo={armado ? "perigo" : "leve"}
+      carregando={carregando}
+      style={armado ? undefined : { borderColor: cor.barro }}
+      onPress={() => { if (armado) { setArmado(false); onConfirmar(); } else setArmado(true); }}
+    />
+  );
+}

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, Text, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
@@ -82,6 +82,22 @@ export default function Planos({ retorno }: { retorno?: string }) {
     recarregar();
     planoCtx.recarregar();
   }
+
+  // Voltando do pagamento: espera o aviso do Stripe e atualiza o plano
+  useEffect(() => {
+    if (retorno !== "sucesso" && retorno !== "portal") return;
+    let vivo = true;
+    (async () => {
+      for (let i = 0; i < 5 && vivo; i++) {
+        await new Promise((r) => setTimeout(r, 2500));
+        if (!vivo) return;
+        await recarregar();
+        planoCtx.recarregar();
+      }
+    })();
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retorno]);
 
   if (carregando && !dados) return <Tela titulo="Planos" voltar><Carregando /></Tela>;
   const { planos, atual, assinatura, vinculo } = dados!;

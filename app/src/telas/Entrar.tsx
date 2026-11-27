@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Image, Platform, Text, View } from "react-native";
-import { supabase, mensagemErro } from "../supabase";
+import { supabase, mensagemErro, URL_APP_WEB } from "../supabase";
 import { Aviso, Botao, Campo, Escolha, Tela } from "../ui";
 import { cor, est } from "../tema";
 
@@ -26,14 +26,13 @@ export default function Entrar() {
           email: email.trim(), password: senha,
           options: {
             data: { nome: nome.trim() },
-            // @ts-ignore - na web, o link de confirmação volta para o próprio app
-            emailRedirectTo: typeof window !== "undefined" && window.location ? `${window.location.origin}${window.location.pathname}` : undefined,
+            emailRedirectTo: URL_APP_WEB,
           },
         });
         if (error) throw error;
         if (!data.session) setMsg({ t: "Conta criada. Confirme pelo link enviado ao seu e-mail e depois entre.", tipo: "ok" });
       } else {
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: URL_APP_WEB });
         if (error) throw error;
         setMsg({ t: "Enviamos um link para redefinir a senha.", tipo: "ok" });
       }
@@ -68,6 +67,30 @@ export default function Entrar() {
       <Text style={[est.textoSuave, { marginTop: 6, textAlign: "center", color: cor.tintaSuave, fontSize: 12 }]}>
         O app registra e organiza. Não substitui o médico-veterinário.
       </Text>
+    </Tela>
+  );
+}
+
+// Depois de abrir o link "Esqueci a senha" do e-mail
+export function NovaSenha({ aoConcluir }: { aoConcluir: () => void }) {
+  const [senha, setSenha] = useState("");
+  const [msg, setMsg] = useState<{ t: string; tipo: "erro" | "ok" } | null>(null);
+  const [carregando, setCarregando] = useState(false);
+  async function salvar() {
+    setMsg(null);
+    if (senha.length < 6) return setMsg({ t: "A senha precisa ter pelo menos 6 caracteres.", tipo: "erro" });
+    setCarregando(true);
+    const { error } = await supabase.auth.updateUser({ password: senha });
+    setCarregando(false);
+    if (error) return setMsg({ t: mensagemErro(error), tipo: "erro" });
+    setMsg({ t: "Senha trocada. Pronto!", tipo: "ok" });
+    setTimeout(aoConcluir, 1200);
+  }
+  return (
+    <Tela titulo="Criar nova senha" subtitulo="Escreva a nova senha e toque em Guardar.">
+      <Campo rotulo="Nova senha" value={senha} onChangeText={setSenha} senha autoComplete="new-password" dica="Mínimo de 6 caracteres." />
+      <Aviso texto={msg?.t} tipo={msg?.tipo} />
+      <Botao titulo="Guardar nova senha" icone="check" onPress={salvar} carregando={carregando} />
     </Tela>
   );
 }

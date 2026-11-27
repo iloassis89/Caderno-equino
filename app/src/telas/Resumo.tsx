@@ -40,9 +40,14 @@ export default function Resumo() {
     const t = textoResumo();
     if (Platform.OS === "web") {
       // @ts-ignore
-      if (navigator.share) await navigator.share({ text: t }).catch(() => {});
+      if (navigator.share) { await navigator.share({ text: t }).catch(() => {}); return; }
       // @ts-ignore
-      else window.print();
+      const w = window.open("", "_blank");
+      if (!w) return;
+      const esc = (x: string) => x.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]!));
+      w.document.write(`<pre style="font-family:Georgia,serif;font-size:14px;white-space:pre-wrap;margin:24px">${esc(t)}</pre>`);
+      w.document.close();
+      setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 400);
     } else {
       await Share.share({ message: t });
     }

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Text, View } from "react-native";
 import { supabase, mensagemErro } from "../supabase";
 import { carregarAnimais, useCarga } from "../dados";
-import { Aviso, Botao, Cabecalho, Campo, Carregando, Cartao, Escolha, Tela, Vazio, useNav } from "../ui";
+import { Aviso, Botao, BotaoConfirmar, Cabecalho, Campo, Carregando, Cartao, Escolha, Tela, Vazio, useNav } from "../ui";
 import { RECORRENCIAS, rotuloDe } from "../constantes";
 import { br, hojeISO, mascaraData, paraISO, proximaData } from "../datas";
 import { cor, est } from "../tema";
@@ -10,6 +10,7 @@ import { cor, est } from "../tema";
 export function Tarefas() {
   const nav = useNav();
   const [msg, setMsg] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState<string | null>(null);
   const { dados, carregando, recarregar } = useCarga(async () => {
     const [t, ex] = await Promise.all([
       supabase.from("tasks").select("*, animals(nome)").eq("ativo", true).order("proxima_data", { nullsFirst: false }),
@@ -20,14 +21,17 @@ export function Tarefas() {
   const hoje = hojeISO();
 
   async function concluir(t: any) {
-    setMsg(null);
-    const { error } = await supabase.from("task_runs").insert({ task_id: t.id, data: hoje, responsavel: t.responsavel });
-    if (error) return setMsg(mensagemErro(error));
-    const base = t.proxima_data && t.proxima_data > hoje ? t.proxima_data : hoje;
-    const prox = proximaData(base, t.recorrencia, t.intervalo);
-    await supabase.from("tasks").update(prox ? { proxima_data: prox } : { ativo: false }).eq("id", t.id);
-    setMsg(`"${t.titulo}" registrada como feita hoje.`);
-    recarregar();
+    if (ocupado) return;
+    setMsg(null); setOcupado(t.id);
+    try {
+      const { error } = await supabase.from("task_runs").insert({ task_id: t.id, data: hoje, responsavel: t.responsavel });
+      if (error) return setMsg(mensagemErro(error));
+      const prox = proximaData(hoje, t.recorrencia, t.intervalo ?? 1);
+      const up = await supabase.from("tasks").update(prox ? { proxima_data: prox } : { ativo: false }).eq("id", t.id);
+      if (up.error) return setMsg(mensagemErro(up.error));
+      setMsg(`"${t.titulo}" marcada como feita hoje.${prox ? ` Próxima vez: ${br(prox)}.` : ""}`);
+      recarregar();
+    } finally { setOcupado(null); }
   }
 
   if (carregando && !dados) return <Tela titulo="Tarefas"><Carregando /></Tela>;
@@ -46,10 +50,14 @@ export function Tarefas() {
             {[t.animals?.nome, rotuloDe(RECORRENCIAS, t.recorrencia), t.responsavel].filter(Boolean).join(" · ")}
           </Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <Botao titulo="Feita hoje" icone="check" style={{ flex: 1 }} onPress={() => concluir(t)} />
-            <Botao titulo="Parar" tipo="leve" style={{ flex: 1 }} onPress={async () => {
-              await supabase.from("tasks").update({ ativo: false }).eq("id", t.id); recarregar();
-            }} />
+            <Botao titulo="Feita hoje" icone="check" style={{ flex: 1 }} onPress={() => concluir(t)} carregando={ocupado === t.id} />
+            <View style={{ flex: 1 }}>
+              <BotaoConfirmar titulo="Parar" icone="stop-circle-outline" onConfirmar={async () => {
+                const { error } = await supabase.from("tasks").update({ ativo: false }).eq("id", t.id);
+                if (error) return setMsg(mensagemErro(error));
+                recarregar();
+              }} />
+            </View>
           </View>
         </Cartao>
       ))}

@@ -8,7 +8,7 @@ import { supabase } from "./src/supabase";
 import { carregarPlano, ehPago } from "./src/dados";
 import { Icone, NavContexto, PlanoContexto, type Rota } from "./src/ui";
 import { cor } from "./src/tema";
-import Entrar from "./src/telas/Entrar";
+import Entrar, { NovaSenha } from "./src/telas/Entrar";
 import Inicio from "./src/telas/Inicio";
 import { Animais, NovoAnimal } from "./src/telas/Animais";
 import { Documentos, Ficha, Historico, NovoRegistro } from "./src/telas/Registros";
@@ -68,15 +68,20 @@ export default function App() {
   const [pilha, setPilha] = useState<Rota[]>([{ nome: "Inicio" }]);
   const [versao, setVersao] = useState(0);
   const [pago, setPago] = useState(false);
+  const [trocarSenha, setTrocarSenha] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSessao(data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSessao(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((evento, s) => {
+      setSessao(s);
+      if (evento === "PASSWORD_RECOVERY") setTrocarSenha(true);
+      if (evento === "SIGNED_OUT") { setPago(false); setPilha([{ nome: "Inicio" }]); setVersao((v) => v + 1); setTrocarSenha(false); }
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
   const recarregarPlano = useCallback(() => {
-    carregarPlano().then((p) => setPago(ehPago(p))).catch(() => {});
+    carregarPlano().then((p) => setPago(ehPago(p))).catch(() => setPago(false));
   }, []);
   useEffect(() => { if (sessao) recarregarPlano(); }, [sessao, recarregarPlano]);
 
@@ -97,20 +102,43 @@ export default function App() {
     return () => s.remove();
   }, []);
 
+  const voltarInterno = useCallback(() => {
+    setPilha((p) => (p.length > 1 ? p.slice(0, -1) : p[0].nome !== "Inicio" ? [{ nome: "Inicio" }] : p));
+    setVersao((v) => v + 1);
+    recarregarPlano();
+  }, [recarregarPlano]);
+
   const nav = useMemo(() => ({
-    ir: (nome: string, params?: any) => setPilha((p) => [...p, { nome, params }]),
-    voltar: () => { setPilha((p) => (p.length > 1 ? p.slice(0, -1) : p)); setVersao((v) => v + 1); recarregarPlano(); },
+    ir: (nome: string, params?: any) => {
+      setPilha((p) => [...p, { nome, params }]);
+      // @ts-ignore
+      if (Platform.OS === "web") window.history.pushState({ ias: true }, "");
+    },
+    voltar: () => {
+      // @ts-ignore
+      if (Platform.OS === "web" && window.history.state?.ias) window.history.back(); else voltarInterno();
+    },
     aba: (nome: string) => { setPilha([{ nome }]); setVersao((v) => v + 1); },
-  }), [recarregarPlano]);
+  }), [voltarInterno]);
+
+  // Botão/gesto de voltar do navegador volta uma tela dentro do app
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const aoVoltar = () => voltarInterno();
+    // @ts-ignore
+    window.addEventListener("popstate", aoVoltar);
+    // @ts-ignore
+    return () => window.removeEventListener("popstate", aoVoltar);
+  }, [voltarInterno]);
 
   useEffect(() => {
     if (Platform.OS !== "android") return;
     const h = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (pilha.length > 1) { nav.voltar(); return true; }
+      if (pilha.length > 1 || pilha[0].nome !== "Inicio") { voltarInterno(); return true; }
       return false;
     });
     return () => h.remove();
-  }, [pilha.length, nav]);
+  }, [pilha, voltarInterno]);
 
   if (sessao === undefined) {
     return <View style={{ flex: 1, backgroundColor: cor.papel, justifyContent: "center" }}><ActivityIndicator color={cor.mata} size="large" /></View>;
@@ -123,7 +151,7 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="dark" />
       <SafeAreaView style={{ flex: 1, backgroundColor: cor.papel }} edges={["top", "left", "right"]}>
-        {!sessao ? <Entrar /> : (
+        {!sessao ? <Entrar /> : trocarSenha ? <NovaSenha aoConcluir={() => setTrocarSenha(false)} /> : (
           <PlanoContexto.Provider value={{ pago, recarregar: recarregarPlano }}>
             <NavContexto.Provider value={nav}>
               <View style={{ flex: 1 }} key={`${pilha.length}-${atual.nome}-${versao}`}>

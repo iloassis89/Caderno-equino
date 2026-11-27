@@ -54,12 +54,12 @@ export type ItemDieta = {
   materia_seca_pct?: number | null;
 };
 
-export type Situacao = "abaixo" | "dentro" | "acima" | "sem_peso";
+export type Situacao = "abaixo" | "dentro" | "acima" | "sem_peso" | "incompleto";
 
 export type ResultadoDieta = {
   naturalKg: number; msKg: number; msSemDado: string[];
   volumosoMsKg: number; volumosoParteDieta: number | null; concentradoKgDia: number; concentradoMaiorRefeicaoKg: number;
-  salG: number;
+  salG: number; salComumG: number; salMineralG: number;
   pesoKg: number | null;
   msPctPV: number | null; volumosoPctPV: number | null; refeicaoPctPV: number | null;
   situacaoMs: Situacao; situacaoVolumoso: Situacao; situacaoRefeicao: Situacao;
@@ -71,7 +71,7 @@ export function kgDia(i: ItemDieta) {
 }
 
 export function calcularDieta(itens: ItemDieta[], pesoKg: number | null): ResultadoDieta {
-  let naturalKg = 0, msKg = 0, volumosoMsKg = 0, concentradoKgDia = 0, concentradoMaiorRefeicaoKg = 0, salG = 0;
+  let naturalKg = 0, msKg = 0, volumosoMsKg = 0, concentradoKgDia = 0, concentradoMaiorRefeicaoKg = 0, salComumG = 0, salMineralG = 0;
   const msSemDado: string[] = [];
   for (const i of itens) {
     const kg = kgDia(i);
@@ -84,29 +84,30 @@ export function calcularDieta(itens: ItemDieta[], pesoKg: number | null): Result
     if (t.grupo === "volumoso") volumosoMsKg += ms;
     if (t.grupo === "concentrado") {
       concentradoKgDia += kg;
-      concentradoMaiorRefeicaoKg = Math.max(concentradoMaiorRefeicaoKg, kg / Math.max(1, i.refeicoes));
+      // supõe que os concentrados vão juntos no cocho: soma a porção de cada um por refeição
+      concentradoMaiorRefeicaoKg += kg / Math.max(1, i.refeicoes);
     }
-    if (t.grupo === "sal") salG += kg * 1000;
+    if (i.tipo === "sal_comum") salComumG += kg * 1000;
+    if (i.tipo === "sal_mineral") salMineralG += kg * 1000;
   }
-  // Se há vários concentrados dados juntos, a refeição soma todos: usa o total dividido pelo menor nº de refeições
-  const concentrados = itens.filter((i) => infoTipoDieta(i.tipo).grupo === "concentrado");
-  if (concentrados.length > 1) {
-    const menorRef = Math.max(1, Math.min(...concentrados.map((i) => i.refeicoes)));
-    concentradoMaiorRefeicaoKg = Math.max(concentradoMaiorRefeicaoKg, concentradoKgDia / menorRef);
-  }
+  const salG = salComumG + salMineralG;
 
   const temPeso = !!pesoKg && pesoKg > 0;
   const pct = (v: number) => (temPeso ? (v / (pesoKg as number)) * 100 : null);
   const msPctPV = pct(msKg), volumosoPctPV = pct(volumosoMsKg), refeicaoPctPV = pct(concentradoMaiorRefeicaoKg);
   const faixa = (v: number | null, min?: number, max?: number): Situacao =>
     v == null ? "sem_peso" : min != null && v < min ? "abaixo" : max != null && v > max ? "acima" : "dentro";
+  const incompleto = msSemDado.length > 0;
+  const volumosoParteDieta = msKg > 0 ? (volumosoMsKg / msKg) * 100 : null;
+  let situacaoVolumoso: Situacao = incompleto ? "incompleto" : faixa(volumosoPctPV, REFERENCIAS.volumosoMin);
+  if (situacaoVolumoso === "dentro" && volumosoParteDieta != null && volumosoParteDieta < REFERENCIAS.volumosoMinParteDieta) situacaoVolumoso = "abaixo";
 
   return {
-    naturalKg, msKg, msSemDado, volumosoMsKg, volumosoParteDieta: msKg > 0 ? (volumosoMsKg / msKg) * 100 : null, concentradoKgDia, concentradoMaiorRefeicaoKg, salG,
+    naturalKg, msKg, msSemDado, volumosoMsKg, volumosoParteDieta, concentradoKgDia, concentradoMaiorRefeicaoKg, salG, salComumG, salMineralG,
     pesoKg: temPeso ? pesoKg : null,
     msPctPV, volumosoPctPV, refeicaoPctPV,
-    situacaoMs: faixa(msPctPV, REFERENCIAS.msTotalUsual[0] - 0.5, REFERENCIAS.msTotalMax),
-    situacaoVolumoso: faixa(volumosoPctPV, REFERENCIAS.volumosoMin),
+    situacaoMs: incompleto ? "incompleto" : faixa(msPctPV, REFERENCIAS.msTotalUsual[0], REFERENCIAS.msTotalUsual[1]),
+    situacaoVolumoso,
     situacaoRefeicao: concentradoKgDia === 0 ? "dentro" : faixa(refeicaoPctPV, undefined, REFERENCIAS.concentradoPorRefeicaoMax),
     aguaLitros: temPeso
       ? [Math.round((pesoKg as number) / 100 * REFERENCIAS.aguaLitrosPor100kg[0]), Math.round((pesoKg as number) / 100 * REFERENCIAS.aguaLitrosPor100kg[1])]

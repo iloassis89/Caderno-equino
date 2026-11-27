@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 import { supabase, mensagemErro } from "../supabase";
-import { carregarAnimais, DIAS_HISTORICO_GRATIS, useCarga } from "../dados";
+import { carregarAnimais, DIAS_HISTORICO_GRATIS, ok, useCarga } from "../dados";
 import {
-  Aviso, Bloqueado, Botao, Cabecalho, Campo, Carregando, Cartao, Escolha, Icone, Rotulado, Selo, Tela, Vazio, useNav, usePlano,
+  Aviso, Bloqueado, Botao, BotaoConfirmar, Cabecalho, Campo, Carregando, Cartao, ErroCarga, Escolha, Icone, Rotulado, Selo, Tela, Vazio, useNav, usePlano,
 } from "../ui";
 import { CATEGORIAS, STATUS, iconeCategoria, lerNumero, numBR, rotuloCategoria } from "../constantes";
 import { br, hojeISO, mascaraData, paraISO, somarDias } from "../datas";
@@ -26,7 +26,7 @@ export function ItemRegistro({ r, mostrarAnimal = true }: { r: any; mostrarAnima
           <Text style={est.textoSuave}>{br(r.data)}{r.responsavel ? ` · ${r.responsavel}` : ""}</Text>
           <View style={{ marginVertical: 6 }}><Selo status={r.status} /></View>
           <Text style={est.texto}>{r.descricao}</Text>
-          {r.peso_kg != null && <Rotulado rotulo="Peso" valor={`${numBR(Number(r.peso_kg))} kg`} />}
+          {r.peso_kg != null && <Rotulado rotulo="Peso" valor={`${numBR(Number(r.peso_kg))} kg${r.medidas?.peso_estimado_fita ? " (estimado pela fita)" : ""}`} />}
           {r.escore_corporal != null && <Rotulado rotulo="Escore corporal" valor={numBR(Number(r.escore_corporal))} />}
           <Rotulado rotulo="Próximo passo" valor={r.proximo_passo} />
         </View>
@@ -48,15 +48,17 @@ export function Historico() {
     : [{ valor: "7", rotulo: "7 dias" }, { valor: "30", rotulo: "30 dias" }];
 
   const animais = useCarga(() => carregarAnimais(false));
-  const { dados, carregando } = useCarga(async () => {
+  const { dados, carregando, erro, recarregar } = useCarga(async () => {
     let q = supabase.from("records").select("*, animals(nome)").order("data", { ascending: false }).order("created_at", { ascending: false }).limit(300);
     if (animal) q = q.eq("animal_id", animal);
     if (categoria) q = q.eq("categoria", categoria);
     if (status) q = q.eq("status", status);
-    const dias = !pago ? Math.min(Number(periodo ?? DIAS_HISTORICO_GRATIS), DIAS_HISTORICO_GRATIS) : periodo === "tudo" ? null : Number(periodo);
+    const escolhido = Number(periodo);
+    const dias = !pago
+      ? Math.min(Number.isFinite(escolhido) ? escolhido : DIAS_HISTORICO_GRATIS, DIAS_HISTORICO_GRATIS)
+      : periodo === "tudo" ? null : Number.isFinite(escolhido) ? escolhido : 30;
     if (dias) q = q.gte("data", somarDias(hojeISO(), -dias));
-    const { data } = await q;
-    return data ?? [];
+    return ok(await q) ?? [];
   }, [animal, periodo, categoria, status, pago]);
 
   return (
@@ -74,6 +76,7 @@ export function Historico() {
           <Escolha rotulo="Assunto" permitirVazio valor={categoria} aoEscolher={setCategoria} opcoes={CATEGORIAS} colunas={2} />
         </>
       )}
+      <ErroCarga erro={erro} tentar={recarregar} />
       <Cabecalho texto={carregando ? "Carregando…" : `${dados?.length ?? 0} anotação(ões)`} />
       {carregando && !dados ? <Carregando /> : (dados ?? []).length === 0 ? <Vazio texto="Nenhuma anotação com esses filtros." /> :
         (dados ?? []).map((r: any) => <ItemRegistro key={r.id} r={r} />)}
@@ -92,15 +95,18 @@ export function EnviarEspecialista({ animalId }: { animalId: string }) {
     // na web, abre a janela antes de carregar, para o navegador não bloquear
     // @ts-ignore
     const janela = Platform.OS === "web" ? window.open("", "_blank") : undefined;
-    try { await enviarPdf(animalId, janela); } catch (e: any) { setErro(mensagemErro(e)); } finally { setOcupado(null); }
+    try { await enviarPdf(animalId, janela); } catch (e: any) { janela?.close(); setErro(mensagemErro(e)); } finally { setOcupado(null); }
   }
   async function zap() {
     setErro(null); setOcupado("zap");
-    try { await enviarWhatsApp(animalId); } catch (e: any) { setErro(mensagemErro(e)); } finally { setOcupado(null); }
+    // @ts-ignore
+    const janela = Platform.OS === "web" ? window.open("", "_blank") : undefined;
+    try { await enviarWhatsApp(animalId, janela); } catch (e: any) { janela?.close(); setErro(mensagemErro(e)); } finally { setOcupado(null); }
   }
   return (
     <View>
       <Botao titulo="Enviar relatório em PDF" icone="file-pdf-box" onPress={pdf} carregando={ocupado === "pdf"} />
+      {Platform.OS === "web" && <Text style={[est.textoSuave, { marginTop: 4 }]}>Vai abrir o relatório. Escolha “Salvar como PDF” ou “Compartilhar” e envie ao veterinário.</Text>}
       <Botao titulo="Mandar pelo WhatsApp" icone="whatsapp" tipo="secundario" onPress={zap} carregando={ocupado === "zap"} />
       <Aviso texto={erro} tipo="erro" />
     </View>
@@ -125,6 +131,7 @@ export function NovoRegistro({ registro, animalId }: { registro?: any; animalId?
   const [escore, setEscore] = useState(registro?.escore_corporal != null ? String(registro.escore_corporal).replace(".", ",") : "");
   const [perimetro, setPerimetro] = useState(registro?.medidas?.perimetro_toracico_cm ? String(registro.medidas.perimetro_toracico_cm) : "");
   const [comprimento, setComprimento] = useState(registro?.medidas?.comprimento_corpo_cm ? String(registro.medidas.comprimento_corpo_cm) : "");
+  const [pesoFita, setPesoFita] = useState<boolean>(!!registro?.medidas?.peso_estimado_fita);
   const [detalhes, setDetalhes] = useState(!!registro && !!(registro.responsavel || registro.evidencia || registro.decisao_necessaria || registro.proximo_passo));
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -143,6 +150,7 @@ export function NovoRegistro({ registro, animalId }: { registro?: any; animalId?
     if (!kg) return setErro("Informe o perímetro do peito e o comprimento do corpo, em centímetros.");
     setErro(null);
     setPeso(String(kg));
+    setPesoFita(true);
   }
 
   async function salvar() {
@@ -153,11 +161,12 @@ export function NovoRegistro({ registro, animalId }: { registro?: any; animalId?
     const dataISO = paraISO(data);
     if (!dataISO) return setErro("Data inválida. Use dia/mês/ano, por exemplo 05/12/2026.");
     if (!descricao.trim()) return setErro("Escreva em poucas palavras o que aconteceu ou o que foi feito.");
-    const p = lerNumero(peso), e = lerNumero(escore);
+    if (status === "realizado" && dataISO > hojeISO()) return setErro("A data está no futuro. Se ainda vai fazer, escolha “Vou fazer”.");
+    const p = ehPeso ? lerNumero(peso) : null, e = ehPeso ? lerNumero(escore) : null;
     if (Number.isNaN(p) || (p != null && (p < 30 || p > 1500))) return setErro("Peso fora do normal. Confira o número (em kg).");
     if (Number.isNaN(e) || (e != null && (e < 1 || e > 9))) return setErro("O escore corporal vai de 1 a 9.");
-    const pc = lerNumero(perimetro), cc = lerNumero(comprimento);
-    const medidas = pc || cc ? { perimetro_toracico_cm: pc || null, comprimento_corpo_cm: cc || null } : null;
+    const pc = ehPeso ? lerNumero(perimetro) : null, cc = ehPeso ? lerNumero(comprimento) : null;
+    const medidas = pc || cc || (pesoFita && p) ? { perimetro_toracico_cm: pc || null, comprimento_corpo_cm: cc || null, peso_estimado_fita: !!(pesoFita && p) } : null;
 
     setSalvando(true);
     const linha = {
@@ -189,7 +198,8 @@ export function NovoRegistro({ registro, animalId }: { registro?: any; animalId?
           : <Bloqueado titulo="Fotos nas anotações" />}
         <Cabecalho texto="Enviar ao veterinário" />
         <EnviarEspecialista animalId={salvo.animalId} />
-        <Botao titulo="Concluir" tipo="leve" icone="check" onPress={nav.voltar} style={{ marginTop: 24 }} />
+        <Botao titulo="Concluir" tipo="leve" icone="check" style={{ marginTop: 24 }}
+          onPress={() => { nav.aba("Animais"); nav.ir("Ficha", { id: salvo.animalId }); }} />
       </Tela>
     );
   }
@@ -217,7 +227,8 @@ export function NovoRegistro({ registro, animalId }: { registro?: any; animalId?
       {ehPeso && (
         <Cartao>
           <Text style={[est.texto, { fontWeight: "700" }]}>Peso e corpo</Text>
-          <Campo rotulo="Peso (kg)" value={peso} onChangeText={setPeso} keyboardType="decimal-pad" placeholder="Se pesou na balança" />
+          <Campo rotulo="Peso (kg)" value={peso} onChangeText={(t) => { setPeso(t); setPesoFita(false); }} keyboardType="decimal-pad" placeholder="Se pesou na balança"
+            dica={pesoFita ? "Peso estimado pela fita (pode errar cerca de 10%)." : undefined} />
           <Text style={[est.textoSuave, { marginBottom: 8 }]}>Sem balança? Meça com fita métrica e toque em Calcular:</Text>
           <Campo rotulo="Volta do peito (cm)" value={perimetro} onChangeText={setPerimetro} keyboardType="decimal-pad"
             dica="Passe a fita logo atrás da cernelha e dos cotovelos, ao redor do peito." />
@@ -244,11 +255,13 @@ export function NovoRegistro({ registro, animalId }: { registro?: any; animalId?
       <Aviso texto={erro} tipo="erro" />
       <Botao titulo="Guardar anotação" icone="check" onPress={salvar} carregando={salvando} />
       {registro && (
-        <Botao titulo="Apagar esta anotação" tipo="leve" icone="trash-can-outline" style={{ borderColor: cor.barro, marginTop: 20 }} onPress={async () => {
-          const { error } = await supabase.from("records").delete().eq("id", registro.id);
-          if (error) return setErro(mensagemErro(error));
-          nav.voltar();
-        }} />
+        <View style={{ marginTop: 20 }}>
+          <BotaoConfirmar titulo="Apagar esta anotação" onConfirmar={async () => {
+            const { error } = await supabase.from("records").delete().eq("id", registro.id);
+            if (error) return setErro(mensagemErro(error));
+            nav.voltar();
+          }} />
+        </View>
       )}
     </Tela>
   );
@@ -258,7 +271,7 @@ export function NovoRegistro({ registro, animalId }: { registro?: any; animalId?
 export function Ficha({ id }: { id: string }) {
   const nav = useNav();
   const { pago } = usePlano();
-  const { dados, carregando } = useCarga(async () => {
+  const { dados, carregando, erro, recarregar } = useCarga(async () => {
     let q = supabase.from("records").select("*").eq("animal_id", id).order("data", { ascending: false }).order("created_at", { ascending: false }).limit(300);
     if (!pago) q = q.gte("data", somarDias(hojeISO(), -DIAS_HISTORICO_GRATIS));
     const [a, r, ult] = await Promise.all([
@@ -266,13 +279,14 @@ export function Ficha({ id }: { id: string }) {
       q,
       supabase.from("records").select("*").eq("animal_id", id).order("data", { ascending: false }).order("created_at", { ascending: false }).limit(1),
     ]);
-    return { animal: a.data, registros: r.data ?? [], ultima: ult.data?.[0] ?? null };
+    return { animal: ok(a), registros: ok(r) ?? [], ultima: ok(ult)?.[0] ?? null };
   }, [id, pago]);
 
+  if (erro && !dados) return <Tela titulo="Ficha" voltar><ErroCarga erro={erro} tentar={recarregar} /></Tela>;
   if (carregando && !dados) return <Tela titulo="Ficha" voltar><Carregando /></Tela>;
   const { animal, registros, ultima } = dados!;
   if (!animal) return <Tela titulo="Ficha" voltar><Vazio texto="Animal não encontrado." /></Tela>;
-  const medidas = registros.filter((r: any) => r.peso_kg != null || r.escore_corporal != null);
+  const medidas = registros.filter((r: any) => r.status === "realizado" && (r.peso_kg != null || r.escore_corporal != null));
   const sexo = animal.sexo === "femea" ? "Fêmea" : animal.sexo === "macho" ? "Macho" : animal.sexo === "macho_castrado" ? "Macho castrado" : null;
 
   return (
@@ -319,13 +333,14 @@ export function Ficha({ id }: { id: string }) {
               <View key={m.id} style={[est.entre, { paddingVertical: 8, borderBottomWidth: 1, borderColor: cor.linha }]}>
                 <Text style={est.texto}>{br(m.data)}</Text>
                 <Text style={[est.texto, { fontWeight: "700" }]}>
-                  {m.peso_kg != null ? `${numBR(Number(m.peso_kg))} kg` : "—"}
+                  {m.peso_kg != null ? `${numBR(Number(m.peso_kg))} kg${m.medidas?.peso_estimado_fita ? "*" : ""}` : "—"}
                   {dp != null ? <Text style={{ color: cor.tintaSuave, fontWeight: "400" }}> ({dp > 0 ? "+" : ""}{numBR(dp)})</Text> : null}
                 </Text>
                 <Text style={est.texto}>{m.escore_corporal != null ? `Escore ${numBR(Number(m.escore_corporal))}` : ""}</Text>
               </View>
             );
           })}
+          {medidas.some((m: any) => m.medidas?.peso_estimado_fita) && <Text style={[est.textoSuave, { marginTop: 8 }]}>* estimado pela fita</Text>}
           {!pago && medidas.length > 1 && <Text style={[est.textoSuave, { marginTop: 8 }]}>A evolução completa do peso fica nos planos pagos.</Text>}
         </Cartao>
       )}

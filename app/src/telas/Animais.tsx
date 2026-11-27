@@ -1,21 +1,22 @@
 import React, { useState } from "react";
 import { Text, View } from "react-native";
 import { supabase, mensagemErro } from "../supabase";
-import { carregarPlano, useCarga } from "../dados";
-import { Aviso, Botao, Cabecalho, Campo, Carregando, Cartao, Escolha, Icone, Tela, Vazio, useNav } from "../ui";
+import { carregarPlano, ok, useCarga } from "../dados";
+import { Aviso, Botao, Cabecalho, Campo, Carregando, Cartao, ErroCarga, Escolha, Icone, Tela, Vazio, useNav } from "../ui";
 import { Anexos, FotoAnimal } from "../anexos";
 import { br, mascaraData, paraISO } from "../datas";
 import { cor, est } from "../tema";
 
 export function Animais() {
   const nav = useNav();
-  const { dados, carregando } = useCarga(async () => {
+  const { dados, carregando, erro, recarregar } = useCarga(async () => {
     const [animais, plano] = await Promise.all([
       supabase.from("animals").select("*").order("ativo", { ascending: false }).order("nome"),
       carregarPlano(),
     ]);
-    return { animais: animais.data ?? [], plano };
+    return { animais: ok(animais) ?? [], plano };
   });
+  if (erro && !dados) return <Tela titulo="Animais"><ErroCarga erro={erro} tentar={recarregar} /></Tela>;
   if (carregando && !dados) return <Tela titulo="Animais"><Carregando /></Tela>;
   const { animais, plano } = dados!;
   const ativos = animais.filter((a: any) => a.ativo).length;

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { supabase, mensagemErro } from "../supabase";
 import { useCarga } from "../dados";
-import { Aviso, Bloqueado, Botao, Cabecalho, Campo, Carregando, Cartao, Escolha, Icone, Tela, Vazio, usePlano } from "../ui";
+import { Aviso, Bloqueado, Botao, BotaoConfirmar, Cabecalho, Campo, Carregando, Cartao, Escolha, Icone, Tela, Vazio, usePlano } from "../ui";
 import { lerNumero, numBR } from "../constantes";
 import { calcularDieta, CUIDADOS, infoTipoDieta, REFERENCIAS, TIPOS_DIETA, type Situacao } from "../nutricao";
 import { br } from "../datas";
@@ -13,9 +13,11 @@ const corSituacao: Record<Situacao, [string, string, string]> = {
   abaixo: [cor.ouroClaro, cor.ouro, "arrow-down-circle-outline"],
   acima: [cor.barroClaro, cor.barro, "arrow-up-circle-outline"],
   sem_peso: [cor.couroClaro, cor.couro, "help-circle-outline"],
+  incompleto: [cor.couroClaro, cor.couro, "help-circle-outline"],
 };
 const textoSituacao: Record<Situacao, string> = {
   dentro: "Dentro da referência", abaixo: "Abaixo da referência", acima: "Acima da referência", sem_peso: "Falta o peso do animal",
+  incompleto: "Falta informação de algum alimento",
 };
 
 function Resultado({ titulo, valor, situacao, referencia }: { titulo: string; valor: string; situacao: Situacao; referencia: string }) {
@@ -43,7 +45,7 @@ export default function Dieta({ animalId, nome }: { animalId: string; nome: stri
   const { dados, carregando, recarregar } = useCarga(async () => {
     const [itens, med] = await Promise.all([
       supabase.from("dieta_itens").select("*").eq("animal_id", animalId).eq("ativo", true).order("created_at"),
-      supabase.from("records").select("data,peso_kg").eq("animal_id", animalId).not("peso_kg", "is", null).order("data", { ascending: false }).limit(1),
+      supabase.from("records").select("data,peso_kg,medidas").eq("animal_id", animalId).eq("status", "realizado").not("peso_kg", "is", null).order("data", { ascending: false }).limit(1),
     ]);
     return { itens: itens.data ?? [], ultimoPeso: med.data?.[0] ?? null };
   }, [animalId]);
@@ -99,7 +101,8 @@ export default function Dieta({ animalId, nome }: { animalId: string; nome: stri
   }
 
   async function removerItem(id: string) {
-    await supabase.from("dieta_itens").update({ ativo: false }).eq("id", id);
+    const { error } = await supabase.from("dieta_itens").update({ ativo: false }).eq("id", id);
+    if (error) return setErro(mensagemErro(error));
     setForm(null);
     recarregar();
   }
@@ -107,7 +110,7 @@ export default function Dieta({ animalId, nome }: { animalId: string; nome: stri
   return (
     <Tela titulo="Alimentação" voltar subtitulo={`${nome} — o que come por dia`}>
       <Campo rotulo="Peso do animal (kg)" value={pesoTxt} onChangeText={setPesoTxt} keyboardType="decimal-pad"
-        dica={dados?.ultimoPeso ? `Último peso anotado: ${numBR(Number(dados.ultimoPeso.peso_kg))} kg em ${br(dados.ultimoPeso.data)}.` : "Sem peso anotado. Use Anotar → Peso e corpo (dá para medir com fita), ou digite aqui."} />
+        dica={dados?.ultimoPeso ? `Último peso anotado: ${numBR(Number(dados.ultimoPeso.peso_kg))} kg em ${br(dados.ultimoPeso.data)}${dados.ultimoPeso.medidas?.peso_estimado_fita ? " (estimado pela fita)" : ""}.` : "Sem peso anotado. Use Anotar → Peso e corpo (dá para medir com fita), ou digite aqui."} />
 
       <Cabecalho texto="O que ele come por dia" />
       {itens.length === 0 && !form ? <Vazio texto="Nenhum alimento anotado." /> : itens.map((i: any) => (
@@ -123,7 +126,7 @@ export default function Dieta({ animalId, nome }: { animalId: string; nome: stri
       {form ? (
         <Cartao style={{ borderColor: cor.mata, borderWidth: 2 }}>
           <Text style={[est.texto, { fontWeight: "700", marginBottom: 8 }]}>{form.id ? "Mudar alimento" : "Novo alimento"}</Text>
-          <Escolha rotulo="Tipo" valor={form.tipo} aoEscolher={(v) => setForm({ ...form, tipo: v, unidade: v === "sal_mineral" || v === "sal_comum" ? "g" : form.unidade })} opcoes={TIPOS_DIETA} colunas={2} />
+          <Escolha rotulo="Tipo" valor={form.tipo} aoEscolher={(v) => setForm({ ...form, tipo: v, unidade: v === "sal_mineral" || v === "sal_comum" ? "g" : "kg" })} opcoes={TIPOS_DIETA} colunas={2} />
           <Campo rotulo="Nome ou marca (se quiser)" value={form.nome} onChangeText={(t) => setForm({ ...form, nome: t })} placeholder="Ex.: Ração Potro 12%" />
           <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
             <View style={{ flex: 1 }}>
@@ -140,7 +143,7 @@ export default function Dieta({ animalId, nome }: { animalId: string; nome: stri
             dica={form.tipo ? `Se deixar em branco, o app usa ${infoTipoDieta(form.tipo).ms ?? "—"}%. Na ração, é 100 menos a "umidade" escrita no saco.` : undefined} />
           <Aviso texto={erro} tipo="erro" />
           <Botao titulo="Guardar alimento" icone="check" onPress={salvarItem} carregando={salvando} />
-          {form.id && <Botao titulo="Tirar da dieta" tipo="leve" icone="trash-can-outline" onPress={() => removerItem(form.id)} />}
+          {form.id && <BotaoConfirmar titulo="Tirar da dieta" onConfirmar={() => removerItem(form.id)} />}
           <Pressable onPress={() => setForm(null)} style={{ minHeight: 48, justifyContent: "center", alignItems: "center" }}>
             <Text style={{ color: cor.couro, fontSize: tam.texto, fontWeight: "700" }}>Cancelar</Text>
           </Pressable>
@@ -155,19 +158,21 @@ export default function Dieta({ animalId, nome }: { animalId: string; nome: stri
           </Text>
           <Resultado titulo="Comida seca total (matéria seca)" situacao={r.situacaoMs}
             valor={`${numBR(r.msKg, 2)} kg/dia${r.msPctPV != null ? ` = ${numBR(r.msPctPV, 2)}% do peso` : ""}`}
-            referencia={`Referência usual: ${numBR(REFERENCIAS.msTotalUsual[0])} a ${numBR(REFERENCIAS.msTotalUsual[1])}% do peso por dia. Nunca abaixo de ${numBR(REFERENCIAS.msTotalMin, 2)}%.`} />
+            referencia={`Referência usual: ${numBR(REFERENCIAS.msTotalUsual[0])} a ${numBR(REFERENCIAS.msTotalUsual[1])}% do peso por dia. Nunca abaixo de ${numBR(REFERENCIAS.msTotalMin, 2)}%.${r.msPctPV != null && r.msPctPV < REFERENCIAS.msTotalMin ? " Atenção: está abaixo do mínimo." : ""}`} />
           <Resultado titulo="Volumoso (feno, capim, silagem)" situacao={r.situacaoVolumoso}
             valor={`${numBR(r.volumosoMsKg, 2)} kg/dia${r.volumosoPctPV != null ? ` = ${numBR(r.volumosoPctPV, 2)}% do peso` : ""}${r.volumosoParteDieta != null ? ` · ${numBR(r.volumosoParteDieta, 0)}% da dieta` : ""}`}
             referencia={`Referência: pelo menos ${numBR(REFERENCIAS.volumosoMin)}% do peso em matéria seca, e pelo menos metade da dieta.`} />
           {r.concentradoKgDia > 0 && (
             <Resultado titulo="Maior refeição de ração ou grão" situacao={r.situacaoRefeicao}
               valor={`${numBR(r.concentradoMaiorRefeicaoKg, 2)} kg${r.refeicaoPctPV != null ? ` = ${numBR(r.refeicaoPctPV, 2)}% do peso` : ""}`}
-              referencia={`Referência: até ${numBR(REFERENCIAS.concentradoPorRefeicaoMax)}% do peso por refeição${limiteRefeicao ? ` (cerca de ${numBR(limiteRefeicao, 1)} kg para este animal)` : ""}. Mais que isso pode causar cólica e laminite.`} />
+              referencia={`Conta considerando que a ração e os grãos vão juntos no cocho. Referência: até ${numBR(REFERENCIAS.concentradoPorRefeicaoMax)}% do peso por refeição${limiteRefeicao ? ` (cerca de ${numBR(limiteRefeicao, 1)} kg para este animal)` : ""}. Mais que isso pode causar cólica e laminite.`} />
           )}
           <Cartao>
             <Text style={[est.texto, { fontWeight: "700" }]}>Sal e minerais</Text>
-            <Text style={est.texto}>Sal anotado: {numBR(r.salG, 0)} g por dia.</Text>
-            <Text style={est.textoSuave}>Referência de sal comum: cerca de {REFERENCIAS.salGramasDia[0]} a {REFERENCIAS.salGramasDia[1]} g por dia para um cavalo de 500 kg em descanso; mais quando sua. {CUIDADOS.minerais}</Text>
+            <Text style={est.texto}>Sal comum: {numBR(r.salComumG, 0)} g por dia.</Text>
+            <Text style={est.textoSuave}>Referência de sal comum: cerca de {REFERENCIAS.salGramasDia[0]} a {REFERENCIAS.salGramasDia[1]} g por dia para um cavalo de 500 kg em descanso; mais quando sua.</Text>
+            <Text style={[est.texto, { marginTop: 6 }]}>Sal mineral: {numBR(r.salMineralG, 0)} g por dia.</Text>
+            <Text style={est.textoSuave}>{CUIDADOS.minerais}</Text>
           </Cartao>
           <Cartao>
             <Text style={[est.texto, { fontWeight: "700" }]}>Água</Text>
